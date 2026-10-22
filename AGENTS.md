@@ -64,8 +64,8 @@
   - Forms work as plain POST + 303 redirect for clients without JS.
   - Request handlers that have a Datastar caller answer it with SSE
     `datastar-patch-elements` instead of a redirect; the wire helpers live in
-    `src/sse.rs`. Use `views::CRUD_ID` (re-exported from `views::root`) for the
-    patch target instead of a second literal.
+    `src/sse.rs`. Use `views::root::CRUD_ID` for the patch target instead of a
+    second literal.
   - Keep page JS for behaviour that Datastar expressions can't express, and put
     it in `web/pages/`, not in a `<script>` tag emitted by a view.
 

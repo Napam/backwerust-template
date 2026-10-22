@@ -22,3 +22,15 @@ pub fn user_delete(id: i64) -> String {
 fn with_id(pattern: &str, id: i64) -> String {
     pattern.replace("{id}", &id.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_the_links_the_views_emit() {
+        assert_eq!(user_update(7), "/users/7/update");
+        assert_eq!(user_delete(7), "/users/7/delete");
+        assert_eq!(index_edit(7), "/?edit=7");
+    }
+}

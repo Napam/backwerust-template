@@ -20,7 +20,7 @@ fn root_renders_list_inline_edit_form_and_static_urls() {
     let html = views::root::page(&users, Some(1)).into_string();
 
     assert!(html.starts_with("<!DOCTYPE html>"));
-    assert!(html.contains(&format!("id=\"{}\"", views::CRUD_ID)));
+    assert!(html.contains(&format!("id=\"{}\"", views::root::CRUD_ID)));
     assert!(html.contains(&format!("action=\"{}\"", paths::USERS)));
     assert!(html.contains("id=\"edit-1\""));
     assert!(html.contains(&format!("action=\"{}\"", paths::user_update(1))));

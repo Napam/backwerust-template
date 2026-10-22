@@ -18,7 +18,7 @@ function isInside(dir: string, file: string): boolean {
 
 function importError(importer: string, specifier: string): string {
   return (
-    `${path.relative(webRoot, importer)} imports ${specifier}, which registers a custom element. ` +
+    `${path.relative(webRoot, importer)} imports ${specifier}, a component module (lib/web-components/ outside base/). ` +
     'Page bundles must not import a component: bundle.js already registers it, and the second definition throws. ' +
     'Move page-safe code to lib/web-components/base/, or use the component in the page markup instead.'
   )

@@ -9,7 +9,8 @@ use crate::db::users;
 use crate::paths;
 use crate::routes::{AppError, AppState, Result};
 use crate::sse;
-use crate::views::{self, CRUD_ID};
+use crate::views;
+use crate::views::root::CRUD_ID;
 
 #[derive(Debug, Deserialize)]
 pub struct IndexQuery {
@@ -125,6 +126,14 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("datastar-request", HeaderValue::from_static("true"));
         headers
+    }
+
+    #[test]
+    fn index_edit_link_parses_back_to_the_edit_query() {
+        let uri = paths::index_edit(7).parse().unwrap();
+        let Query(query) = Query::<IndexQuery>::try_from_uri(&uri).unwrap();
+
+        assert_eq!(query.edit, Some(7));
     }
 
     async fn body_text(response: Response) -> String {

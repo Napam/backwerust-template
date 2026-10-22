@@ -10,7 +10,7 @@ import { rejectComponentImports } from './page-guard'
 const webRoot = path.resolve(import.meta.dir, '..')
 const fixtureDir = path.join(webRoot, 'tmp/page-guard')
 const outdir = path.join(fixtureDir, 'out')
-const GUARD_MESSAGE = 'registers a custom element'
+const GUARD_MESSAGE = 'a component module'
 
 type BuildResult = { success: boolean; errors: string }
 

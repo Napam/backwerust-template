@@ -11,8 +11,6 @@ use maud::{DOCTYPE, Markup, html};
 
 use crate::paths;
 
-pub use root::CRUD_ID;
-
 /// Page shell shared by every route.
 pub fn layout(scripts: Markup, content: Markup) -> Markup {
     html! {

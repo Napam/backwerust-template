@@ -91,7 +91,7 @@ components enhance where needed.
 - The route -> view path is short: a handler in `src/routes/root.rs` calls
   `views::root::page`, which builds the page shell with `layout` and renders the
   CRUD example from `views::root::crud`. A Datastar patch re-renders
-  `views::root::crud` into the section named by `views::CRUD_ID`. Lit components
+  `views::root::crud` into the section named by `views::root::CRUD_ID`. Lit components
   live in `web/lib/web-components` and are registered by the shared bundle.
 - Route patterns and the links built from them live in `src/paths.rs`, so the
   router, views, redirects and tests cannot drift apart.
@@ -143,11 +143,13 @@ produces two kinds of bundles:
 - **Page bundles:** a `.ts` file under `web/pages/` becomes its own bundle
   under `static/page-files/pages/`, keeping the relative path.
   `web/pages/root.ts` pairs with `views::root::page` in `src/views/root.rs`.
-  Load it on just that page, inside `html!`:
+  Load it on just that page. `layout` already loads `bundle.js` and Datastar,
+  so the page only passes its own script to `layout`:
 
   ```rust
-  script src="/static/bundle.js" {}
-  script defer src="/static/page-files/pages/root.js" {}
+  let scripts = html! {
+      script defer src="/static/page-files/pages/root.js" {}
+  };
   ```
 
 Page files are plain top-level browser code, no exports needed. `pages/` is an
