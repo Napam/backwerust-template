@@ -1,0 +1,7 @@
+[tools]
+# rustup-backed; rust-toolchain.toml pins the actual channel and components
+rust = "1.99"
+bun = "latest"
+task = "latest"
+"aqua:tailwindlabs/tailwindcss" = "latest"
+"github:Canop/bacon" = "latest"

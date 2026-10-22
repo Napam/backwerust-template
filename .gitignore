@@ -1,0 +1,17 @@
+# Finder (MacOS) folder config
+.DS_Store
+
+# Cargo build output
+/target
+
+# Runtime and build output, each keeps its own .gitignore
+/bin/*
+!/bin/.gitignore
+/data/*
+/tmp/*
+
+# Plan files are working notes, not part of the template
+/plans/
+
+# JS dependencies
+web/node_modules

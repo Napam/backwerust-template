@@ -1,0 +1,236 @@
+version: "3"
+
+env:
+  HOST: "localhost"
+  PORT: "6900"
+  DB_MIGRATE_ON_START: "true"
+  DB_PATH: "./data/sqlite.db"
+
+tasks:
+  init:
+    desc: Install tools and js deps, symlink git hooks
+    cmds:
+      # tools first: cargo, bun and bacon (used by the tasks below) come from mise
+      - mise install
+      - task: init.js
+      - task: init.hooks
+
+  init.hooks:
+    desc: Symlink .hooks as the git hooks directory
+    status:
+      - test "$(readlink .git/hooks)" = "../.hooks"
+    cmds:
+      - rm -rf .git/hooks
+      - ln -s ../.hooks .git/hooks
+
+  init.js:
+    desc: Install js dependencies into web/node_modules
+    dir: ./web
+    cmds:
+      - bun install
+
+  db.migrate:
+    desc: Apply the migrations in db/migrations to the local sqlite database
+    cmds:
+      - cargo run --quiet --bin migrate
+
+  db.new:
+    desc: "Create a timestamped empty migration (usage: task db.new -- <name>)"
+    cmds:
+      - |
+        mkdir -p db/migrations
+        ts=$(date -u +%Y%m%d%H%M%S)
+        # task passes quoted words through; strip spaces and quotes so the
+        # filename stays a plain sqlx migration name
+        name=$(printf '%s' "{{.CLI_ARGS}}" | tr ' ' '_' | tr -d "'\"")
+        if [ -z "$name" ]; then
+          echo "usage: task db.new -- <name>" >&2
+          exit 1
+        fi
+        file="db/migrations/${ts}_${name}.sql"
+        {
+          printf '%s\n' "-- ${ts}_${name}"
+          printf '%s\n' "-- Created by task db.new. sqlx applies migrations in filename order."
+        } > "$file"
+        echo "created $file"
+
+  dev:
+    desc: Run all watchers and the dev server with live reload
+    deps:
+      - init
+    cmds:
+      # refuse to start if an orphaned server from a previous session holds the port
+      - |
+        if nc -z "$HOST" "$PORT" 2>/dev/null; then
+          echo "$HOST:$PORT is already in use: another dev session or an orphaned server?" >&2
+          exit 1
+        fi
+      - task --parallel dev.css dev.web dev.rust
+
+  dev.css:
+    desc: Watch and rebuild tailwind css
+    dir: ./web
+    cmds:
+      # ignore_error: watchers exit non-zero on Ctrl+C, which would falsely
+      # report the stopped dev session as failed
+      - cmd: bunx tailwindcss -i tailwind.css -o static/tailwind.css --watch --minify --cwd .
+        ignore_error: true
+
+  dev.web:
+    desc: Watch and rebuild the js bundles
+    dir: ./web
+    cmds:
+      # ignore_error: see dev.css
+      - cmd: bun run build.ts --watch
+        ignore_error: true
+
+  dev.rust:
+    desc: Build and run the server, restarting it on Rust, template, or migration changes
+    cmds:
+      # bacon runs the new binary as it lands (debug build: assets come from
+      # disk, live reload is on) and kills/restarts it on change. See bacon.toml.
+      - bacon
+
+  build:
+    desc: Build the production binary with embedded assets into ./bin/app
+    cmds:
+      - task: init.js
+      # the * glob spares web/static/.gitignore
+      - rm -rf web/static/*
+      - task: build.assets
+      - cargo build --release --locked
+      - cp target/release/backwerust ./bin/app
+
+  build.assets:
+    desc: Build all static web assets
+    deps:
+      - build.css
+      - build.web
+
+  build.css:
+    desc: Build minified tailwind css
+    dir: ./web
+    cmds:
+      - bunx tailwindcss -i tailwind.css -o static/tailwind.css --minify --cwd .
+
+  build.web:
+    desc: Build the production js bundles
+    dir: ./web
+    cmds:
+      - ENV=prod bun run build.ts
+
+  check:
+    desc: Run all checks (formatting, linting, compile)
+    deps:
+      - check.rust
+      - check.web
+
+  check.rust:
+    desc: Rust formatting, lint, compile and render test check (parallel)
+    cmds:
+      - |
+        cargo fmt --check & p1=$!
+        cargo clippy --all-targets -- -D warnings & p2=$!
+        cargo build --all-targets --locked & p3=$!
+        cargo test --all-targets & p4=$!
+        ec=0
+        wait $p1 || ec=$?
+        wait $p2 || ec=$?
+        wait $p3 || ec=$?
+        wait $p4 || ec=$?
+        exit $ec
+
+  check.web:
+    desc: Prettier, ESLint, TypeScript, and build check (parallel)
+    dir: ./web
+    deps:
+      - init.js
+    cmds:
+      # OUTDIR: don't clobber web/static while a dev session or build is running
+      - |
+        bunx prettier --check . & p1=$!
+        bunx eslint . & p2=$!
+        bunx tsc --noEmit & p3=$!
+        OUTDIR=tmp/check-static bun run build.ts & p4=$!
+        ec=0
+        wait $p1 || ec=$?
+        wait $p2 || ec=$?
+        wait $p3 || ec=$?
+        wait $p4 || ec=$?
+        exit $ec
+
+  fix:
+    desc: Auto-fix all formatting and linting (Rust + JS/TS)
+    deps:
+      - fix.rust
+      - fix.web
+
+  fix.rust:
+    desc: Auto-fix Rust formatting and lint issues
+    cmds:
+      - cargo fmt
+      - cargo clippy --fix --allow-dirty --allow-staged --all-targets
+      # --fix can leave code uncompilable; verify the tree still builds
+      - cargo build --all-targets
+
+  fix.web:
+    desc: Format and lint-fix JS/TS code (prettier, eslint --fix)
+    dir: ./web
+    deps:
+      - init.js
+    cmds:
+      - bunx prettier --write .
+      - bunx eslint --fix .
+
+  update:
+    desc: Update everything (mise tools, crates, js deps)
+    deps:
+      - update.tools
+      - update.rust
+      - update.web
+
+  update.tools:
+    desc: Bump the project's mise-managed tools to their latest versions (writes mise.toml)
+    cmds:
+      - mise upgrade --bump --local
+
+  update.rust:
+    desc: Update crate dependencies within the version ranges in Cargo.toml
+    cmds:
+      - cargo update
+
+  update.web:
+    desc: Update js dependencies to their latest versions
+    dir: ./web
+    cmds:
+      - bun update --latest
+      - bun install
+
+  clean:
+    desc: Wipe build artifacts and local caches
+    cmds:
+      - cargo clean
+      - rm -rf tmp/*
+      - rm -rf web/tmp/*
+      - rm -rf web/node_modules
+      - rm -rf web/static/*
+      - rm -f bin/app
+
+  build.docker:
+    desc: Build the production docker image
+    cmds:
+      - docker build -t backwerust:latest .
+
+  build.docker.run:
+    desc: Build the docker image and run it with local data mounted
+    deps:
+      - build.docker
+    cmds:
+      - |
+        docker run --rm \
+        -e HOST=0.0.0.0 \
+        -e PORT=$PORT \
+        -e DB_MIGRATE_ON_START=$DB_MIGRATE_ON_START \
+        -v $(pwd)/data:/app/data \
+        -p $PORT:$PORT \
+        backwerust:latest
