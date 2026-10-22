@@ -2,8 +2,8 @@ import { Glob } from 'bun'
 import fs from 'fs'
 import path from 'path'
 
-// Run from web/ so every relative path (tailwind.css, lib/, pages/, assets/)
-// resolves the same way regardless of the caller's cwd.
+// Run from web/ so every relative path (lib/, pages/, assets/) resolves the
+// same way regardless of the caller's cwd.
 process.chdir(import.meta.dir)
 
 const isProdBuild = process.env.ENV === 'prod'
@@ -188,33 +188,6 @@ function exposeFiles() {
   }
 }
 
-// ── Tailwind ──
-
-/**
- * Compile tailwind.css into <outdir>/tailwind.css. Classes come from
- * templates/*.html and from the TS components; both are declared with
- * @source in tailwind.css.
- */
-async function buildTailwind() {
-  fs.mkdirSync(outdir, { recursive: true })
-  const start = Date.now()
-
-  const proc = Bun.spawn(
-    ['bunx', 'tailwindcss', '-i', 'tailwind.css', '-o', `${outdir}/tailwind.css`, '--minify', '--cwd', '.'],
-    { cwd: import.meta.dir, stdout: 'inherit', stderr: 'inherit' }
-  )
-  const exitCode = await proc.exited
-
-  if (exitCode !== 0) {
-    throw new Error(`tailwindcss exited with code ${exitCode}`)
-  }
-
-  return {
-    out: `${outdir}/tailwind.css`,
-    spent: Date.now() - start,
-  }
-}
-
 // ── ANSI helpers ──
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[22m`
@@ -260,7 +233,7 @@ function bundleAttrs(res: { minify: boolean; treeShaking: boolean }): string {
 
 // ── Build ──
 
-type ChangeKind = 'js' | 'assets' | 'css'
+type ChangeKind = 'js' | 'assets'
 
 async function buildAll() {
   const start = Date.now()
@@ -270,7 +243,6 @@ async function buildAll() {
   const libBundleRes = await bundleLib()
   const pageBundleRes = await bundlePageFiles()
   const exposeRes = exposeFiles()
-  const tailwindRes = await buildTailwind()
 
   // ── Summary ──
 
@@ -296,9 +268,6 @@ async function buildAll() {
     console.log(`${dim('│')} ${src} ${dim('→')} ${dest} ${dim(fileSize(dest))}`)
   }
 
-  console.log(
-    `${cyan('build')} ${yellow(tailwindRes.out)} ${green(fileSize(tailwindRes.out))} ${dim(`${tailwindRes.spent}ms`)}`
-  )
   console.log(`${cyan('build')} Done in ${green(`${Date.now() - start}ms`)}`)
 }
 
@@ -312,11 +281,8 @@ async function rebuild(kinds: Set<ChangeKind>) {
   if (kinds.has('assets')) {
     exposeFiles()
   }
-  if (kinds.has('css')) {
-    await buildTailwind()
-  }
 
-  const labels = [...kinds].map((kind) => ({ js: 'js', assets: 'assets', css: 'css' })[kind])
+  const labels = [...kinds].map((kind) => ({ js: 'js', assets: 'assets' })[kind])
   console.log(`${cyan('watch')} rebuilt ${labels.join(', ')} ${dim(`${Date.now() - start}ms`)}`)
 }
 
@@ -361,14 +327,8 @@ function startWatching() {
   watchDir('lib', 'js')
   watchDir('pages', 'js')
   watchDir('assets', 'assets')
-  watchDir('../templates', 'css')
 
-  // tailwind.css sits at the top level, so watch the file itself.
-  fs.watchFile('tailwind.css', { interval: 200 }, () => schedule('css'))
-
-  console.log(
-    `${cyan('watch')} watching lib/, pages/, assets/, templates/, tailwind.css ${dim('(ctrl+c to stop)')}`
-  )
+  console.log(`${cyan('watch')} watching lib/, pages/, assets/ ${dim('(ctrl+c to stop)')}`)
 }
 
 // ── Entry ──

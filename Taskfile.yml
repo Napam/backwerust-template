@@ -8,7 +8,7 @@ env:
 
 tasks:
   init:
-    desc: Install tools and js deps, symlink git hooks
+    desc: Install tools and js deps, set up git hooks
     cmds:
       # tools first: cargo, bun and bacon (used by the tasks below) come from mise
       - mise install
@@ -16,12 +16,11 @@ tasks:
       - task: init.hooks
 
   init.hooks:
-    desc: Symlink .hooks as the git hooks directory
+    desc: Point git at the repo hooks directory
     status:
-      - test "$(readlink .git/hooks)" = "../.hooks"
+      - test "$(git config core.hooksPath)" = ".hooks"
     cmds:
-      - rm -rf .git/hooks
-      - ln -s ../.hooks .git/hooks
+      - git config core.hooksPath .hooks
 
   init.js:
     desc: Install js dependencies into web/node_modules
@@ -141,22 +140,25 @@ tasks:
         exit $ec
 
   check.web:
-    desc: Prettier, ESLint, TypeScript, and build check (parallel)
+    desc: Prettier, ESLint, TypeScript, and build checks (parallel)
     dir: ./web
     deps:
       - init.js
     cmds:
       # OUTDIR: don't clobber web/static while a dev session or build is running
       - |
+        mkdir -p tmp/check-static
         bunx prettier --check . & p1=$!
         bunx eslint . & p2=$!
         bunx tsc --noEmit & p3=$!
         OUTDIR=tmp/check-static bun run build.ts & p4=$!
+        bunx tailwindcss -i tailwind.css -o tmp/check-static/tailwind.css --minify --cwd . & p5=$!
         ec=0
         wait $p1 || ec=$?
         wait $p2 || ec=$?
         wait $p3 || ec=$?
         wait $p4 || ec=$?
+        wait $p5 || ec=$?
         exit $ec
 
   fix:
