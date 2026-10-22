@@ -4,4 +4,6 @@ rust = "1.99"
 bun = "latest"
 task = "latest"
 "aqua:tailwindlabs/tailwindcss" = "latest"
-"github:Canop/bacon" = "latest"
+# ubi, not github:: the github: backend installs the x86_64 mac asset on Apple
+# Silicon, which fails with "Bad CPU type in executable"
+"ubi:Canop/bacon" = "latest"
