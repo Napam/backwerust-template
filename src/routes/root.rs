@@ -1,13 +1,14 @@
 use axum::Form;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
-use axum::response::{Html, IntoResponse, Redirect, Response};
-use serde::{Deserialize, Serialize};
+use axum::response::{IntoResponse, Redirect, Response};
+use maud::Markup;
+use serde::Deserialize;
 
-use crate::db::users::{self, User};
-use crate::routes::{AppError, AppState, Result};
+use crate::db::users;
+use crate::routes::{AppState, Result};
 use crate::sse;
-use crate::templates;
+use crate::views;
 
 const CRUD_SELECTOR: &str = "#crud";
 
@@ -21,12 +22,6 @@ pub struct NameForm {
     name: String,
 }
 
-#[derive(Serialize)]
-pub struct Context {
-    pub users: Vec<User>,
-    pub edit_id: i64,
-}
-
 fn optional_name(name: &str) -> Option<&str> {
     (!name.is_empty()).then_some(name)
 }
@@ -34,11 +29,11 @@ fn optional_name(name: &str) -> Option<&str> {
 pub async fn index(
     State(state): State<AppState>,
     Query(query): Query<IndexQuery>,
-) -> Result<Html<String>> {
+) -> Result<Markup> {
     let users = users::list(&state.pool).await?;
     let edit_id = query.edit.and_then(|id| id.parse().ok()).unwrap_or(0);
 
-    Ok(Html(render("root.html", Context { users, edit_id })?))
+    Ok(views::root(&users, edit_id))
 }
 
 pub async fn create(State(state): State<AppState>, Form(form): Form<NameForm>) -> Result<Redirect> {
@@ -80,21 +75,7 @@ pub async fn delete(
 /// Re-renders the CRUD section for a Datastar patch after an edit or delete.
 async fn crud_patch(state: &AppState) -> Result<Response> {
     let users = users::list(&state.pool).await?;
-    let crud = render("partials/crud.html", Context { users, edit_id: 0 })?;
+    let crud = views::crud(&users, 0);
 
-    Ok(sse::patch_response(CRUD_SELECTOR, &crud))
-}
-
-/// Renders a template, logging the template name and line on failure before
-/// the error becomes a plain 500.
-fn render(name: &str, ctx: impl Serialize) -> Result<String> {
-    templates::render(name, ctx).map_err(|error| {
-        tracing::error!(
-            template = error.name().unwrap_or(name),
-            line = ?error.line(),
-            error = %error,
-            "rendering template failed"
-        );
-        AppError::from(error)
-    })
+    Ok(sse::patch_response(CRUD_SELECTOR, &crud.into_string()))
 }

@@ -18,7 +18,5 @@ background = false
 on_change_strategy = "kill_then_restart"
 scroll_anchor = "auto"
 # src/ and db/migrations trigger a rebuild (sqlx embeds the migrations).
-# build.rs regenerates the template embed, so it is watched too. templates/ is
-# intentionally absent: debug builds reload templates from disk, so editing one
-# only needs the live reload watcher, not a restart.
-watch = ["src", "db/migrations", "Cargo.toml", "build.rs"]
+# Views live in src/, so there is no separate template directory to watch.
+watch = ["src", "db/migrations", "Cargo.toml"]

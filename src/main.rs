@@ -1,7 +1,7 @@
 use std::io::IsTerminal;
 
 use anyhow::Context;
-use backwerust_template::{config::Config, db, routes, templates};
+use backwerust_template::{config::Config, db, routes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -11,7 +11,6 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(cwd = %cwd.display(), "starting backwerust-template");
 
     let config = Config::from_env()?;
-    templates::init().context("loading templates")?;
     let pool = db::connect(&config.db_path).await?;
     if config.db_migrate_on_start {
         db::migrate(&pool).await?;

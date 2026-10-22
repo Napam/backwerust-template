@@ -17,9 +17,8 @@ path = "src/bin/migrate.rs"
 [dependencies]
 anyhow = "1"
 axum = "0.8"
+maud = { version = "0.27", features = ["axum"] }
 mime_guess = "2"
-minijinja = { version = "3", features = ["serde"] }
-minijinja-embed = "3"
 notify = "8"
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
@@ -33,9 +32,6 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal
 tower-livereload = "0.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
-
-[build-dependencies]
-minijinja-embed = "3"
 
 [profile.release]
 strip = true

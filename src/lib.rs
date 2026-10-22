@@ -4,4 +4,4 @@ pub mod db;
 pub mod dev;
 pub mod routes;
 pub mod sse;
-pub mod templates;
+pub mod views;
