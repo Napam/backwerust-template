@@ -4,9 +4,16 @@
 //! fields and types used inside `html!`, so a renamed field or a wrong type
 //! fails the build instead of a request.
 
+use axum::http::StatusCode;
 use maud::{DOCTYPE, Markup, html};
 
 use crate::db::users::User;
+
+/// Id of the CRUD section that Datastar replaces after an edit or delete.
+pub const CRUD_ID: &str = "crud";
+
+/// Question asked before deleting a user, shared by the plain and Datastar paths.
+const DELETE_CONFIRM: &str = "Delete this user?";
 
 /// Page shell shared by every route.
 pub fn layout(scripts: Markup, content: Markup) -> Markup {
@@ -29,8 +36,30 @@ pub fn layout(scripts: Markup, content: Markup) -> Markup {
     }
 }
 
+/// Full page for an error response.
+pub fn error(status: StatusCode) -> Markup {
+    let reason = status.canonical_reason().unwrap_or("Error");
+
+    layout(
+        Markup::default(),
+        html! {
+            main class="mx-auto max-w-3xl px-6 py-16" {
+                h1 class="mb-2 text-2xl font-bold tracking-tight text-gray-700 dark:text-neutral-200" {
+                    (status.as_u16()) " " (reason)
+                }
+                p class="mb-6 text-gray-500 dark:text-neutral-400" {
+                    "The request could not be completed."
+                }
+                a class="text-primary-500 hover:underline dark:text-primary-400" href="/" {
+                    "Back to the start page"
+                }
+            }
+        },
+    )
+}
+
 /// Landing page with the stack list and the CRUD example.
-pub fn root(users: &[User], edit_id: i64) -> Markup {
+pub fn root(users: &[User], edit_id: Option<i64>) -> Markup {
     let scripts = html! {
         script defer src="/static/page-files/pages/root.js" {}
     };
@@ -125,9 +154,9 @@ pub fn root(users: &[User], edit_id: i64) -> Markup {
 }
 
 /// The CRUD section. Datastar replaces this whole section after an edit.
-pub fn crud(users: &[User], edit_id: i64) -> Markup {
+pub fn crud(users: &[User], edit_id: Option<i64>) -> Markup {
     html! {
-        section id="crud" class="flex flex-col gap-4 rounded-xs border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800" {
+        section id=(CRUD_ID) class="flex flex-col gap-4 rounded-xs border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800" {
             div class="flex items-baseline justify-between" {
                 h2 class="text-sm text-gray-500 dark:text-neutral-400" {
                     "Example CRUD - User registry"
@@ -154,7 +183,7 @@ pub fn crud(users: &[User], edit_id: i64) -> Markup {
 }
 
 /// Rows of the user table, with an inline edit form for `edit_id`.
-pub fn users_table(users: &[User], edit_id: i64) -> Markup {
+pub fn users_table(users: &[User], edit_id: Option<i64>) -> Markup {
     html! {
         table class="w-full text-sm" {
             thead class="border-b border-gray-200 dark:border-neutral-700" {
@@ -166,53 +195,73 @@ pub fn users_table(users: &[User], edit_id: i64) -> Markup {
             }
             tbody class="font-light text-gray-500 dark:text-neutral-400" {
                 @for user in users {
-                    tr {
-                        td class="pt-2" { (user.id) }
-                        @if edit_id == user.id {
-                            td class="pt-2" {
-                                form
-                                    id=(format!("edit-{}", user.id))
-                                    method="post"
-                                    action=(format!("/users/{}/update", user.id))
-                                    class="flex items-center gap-2"
-                                    data-on:submit=(datastar_post(&format!("/users/{}/update", user.id)))
-                                {
-                                    input
-                                        name="name"
-                                        value=[user.name.as_deref()]
-                                        aria-label="User name"
-                                        class="w-full border-b border-gray-300 bg-transparent text-sm text-gray-700 outline-none dark:border-neutral-500 dark:text-neutral-300";
-                                }
-                            }
-                        } @else {
-                            td class="pt-2" { (user.name.as_deref().unwrap_or("")) }
-                        }
-                        td class="flex justify-end gap-2 pt-2" {
-                            @if edit_id == user.id {
-                                button type="submit" form=(format!("edit-{}", user.id)) class="text-primary-500 dark:text-primary-400 cursor-pointer text-xs" {
-                                    "Save"
-                                }
-                                a href="/" class="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:text-neutral-500 dark:hover:text-neutral-300" {
-                                    "Cancel"
-                                }
-                            } @else {
-                                a href=(format!("/?edit={}", user.id)) aria-label="Edit user" class="cursor-pointer" {
-                                    edit-icon svgClass="dark:hover:text-primary-500 hover:text-primary-500 size-4 text-gray-400 dark:text-neutral-500" {}
-                                }
-                                form method="post" action=(format!("/users/{}/delete", user.id)) data-confirm="Delete this user?" {
-                                    button
-                                        type="submit"
-                                        aria-label="Delete user"
-                                        class="cursor-pointer"
-                                        data-on:click__prevent=(format!("confirm('Delete this user?') && @post('/users/{}/delete', {{contentType: 'form'}})", user.id))
-                                    {
-                                        trash-icon svgClass="size-4 text-gray-400 hover:text-red-600 dark:text-neutral-500 dark:hover:text-red-600" {}
-                                    }
-                                }
-                            }
-                        }
+                    (user_row(user, edit_id))
+                }
+            }
+        }
+    }
+}
+
+/// One row. The update and delete forms are built from one path each, so the
+/// plain and Datastar requests cannot drift apart.
+fn user_row(user: &User, edit_id: Option<i64>) -> Markup {
+    let editing = edit_id == Some(user.id);
+    let update_action = format!("/users/{}/update", user.id);
+    let delete_action = format!("/users/{}/delete", user.id);
+
+    html! {
+        tr {
+            td class="pt-2" { (user.id) }
+            @if editing {
+                td class="pt-2" {
+                    form
+                        id=(format!("edit-{}", user.id))
+                        method="post"
+                        action=(update_action)
+                        class="flex items-center gap-2"
+                        data-on:submit=(datastar_post(&update_action))
+                    {
+                        input
+                            name="name"
+                            value=[user.name.as_deref()]
+                            aria-label="User name"
+                            class="w-full border-b border-gray-300 bg-transparent text-sm text-gray-700 outline-none dark:border-neutral-500 dark:text-neutral-300";
                     }
                 }
+            } @else {
+                td class="pt-2" { (user.name.as_deref().unwrap_or("")) }
+            }
+            td class="flex justify-end gap-2 pt-2" {
+                @if editing {
+                    button type="submit" form=(format!("edit-{}", user.id)) class="text-primary-500 dark:text-primary-400 cursor-pointer text-xs" {
+                        "Save"
+                    }
+                    a href="/" class="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:text-neutral-500 dark:hover:text-neutral-300" {
+                        "Cancel"
+                    }
+                } @else {
+                    a href=(format!("/?edit={}", user.id)) aria-label="Edit user" class="cursor-pointer" {
+                        edit-icon svgClass="dark:hover:text-primary-500 hover:text-primary-500 size-4 text-gray-400 dark:text-neutral-500" {}
+                    }
+                    (delete_form(&delete_action))
+                }
+            }
+        }
+    }
+}
+
+/// The delete form. `data-confirm` guards the plain submit; the Datastar
+/// click handler asks the same question and posts the same path.
+fn delete_form(action: &str) -> Markup {
+    html! {
+        form method="post" action=(action) data-confirm=(DELETE_CONFIRM) {
+            button
+                type="submit"
+                aria-label="Delete user"
+                class="cursor-pointer"
+                data-on:click__prevent=(format!("confirm('{DELETE_CONFIRM}') && {}", datastar_post(action)))
+            {
+                trash-icon svgClass="size-4 text-gray-400 hover:text-red-600 dark:text-neutral-500 dark:hover:text-red-600" {}
             }
         }
     }

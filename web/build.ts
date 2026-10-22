@@ -2,11 +2,20 @@ import { Glob } from 'bun'
 import fs from 'fs'
 import path from 'path'
 
+import { rejectComponentImports } from './scripts/page-guard'
+
 // Run from web/ so every relative path (lib/, pages/, assets/) resolves the
 // same way regardless of the caller's cwd.
 process.chdir(import.meta.dir)
 
 const isProdBuild = process.env.ENV === 'prod'
+// Bun picks package export conditions (including lit's development entry)
+// from NODE_ENV, not ENV, and only reads it when the process starts. Fail
+// instead of shipping lit's dev build when the caller forgot to set it.
+if (isProdBuild && process.env.NODE_ENV !== 'production') {
+  console.error('build: ENV=prod requires NODE_ENV=production; run `task build.web`')
+  process.exit(1)
+}
 // Overridable so `task check.web` can build to a scratch dir instead of
 // clobbering static/ while a dev session or production build is running.
 const outdir = process.env.OUTDIR ?? 'static'
@@ -62,22 +71,17 @@ async function bundleLib() {
 }
 
 /**
- * Top-level directories that never contain page-specific code.
- */
-const nonPageDirs = new Set(['assets', 'lib', 'node_modules', 'static', 'tmp'])
-
-/**
- * One bundle per page dir into page-files/ (pages/root.ts → page-files/pages/root.js).
- * Avoid importing from lib/: small utilities are fine, but each import
- * duplicates code into the page bundle (iife, no code splitting). Don't
- * import web components from lib/: bundle.js already registered them, so
- * re-running customElements.define throws.
+ * One bundle per page file into page-files/ (pages/root.ts → page-files/pages/root.js).
+ * pages/ is an allowlist: only code next to a rendered page belongs here, so
+ * scripts and tests can never be served as page bundles.
+ *
+ * Fails when a page pulls in a module that defines a custom element:
+ * bundle.js is a synchronous head script and registers every lib/ component
+ * first, so a deferred page bundle that defines one again throws.
  */
 async function bundlePageFiles() {
-  const glob = new Glob('*/**/*.ts')
-  const pageFiles = Array.from(glob.scanSync('.')).filter(
-    (f) => !f.endsWith('.d.ts') && !nonPageDirs.has(f.split('/')[0])
-  )
+  const glob = new Glob('pages/**/*.ts')
+  const pageFiles = Array.from(glob.scanSync('.')).filter((f) => !f.endsWith('.d.ts'))
   const pageOutdir = `${outdir}/page-files`
 
   // Wipe first so renamed/deleted page files don't leave stale bundles behind.
@@ -96,6 +100,7 @@ async function bundlePageFiles() {
     format: 'iife',
     root: '.',
     throw: false,
+    plugins: [rejectComponentImports],
   })
 
   if (!buildResult.success) {

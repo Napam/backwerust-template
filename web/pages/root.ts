@@ -3,8 +3,8 @@
 //
 // Page files enhance server-rendered HTML. Avoid importing from lib/:
 // small utilities are fine, but each import duplicates code into the page
-// bundle (iife, no code splitting). Don't import web components: bundle.js
-// already registered them, re-registering throws.
+// bundle (iife, no code splitting). Importing a web component fails the
+// build: bundle.js already registered them, re-registering throws.
 
 // Progressive enhancement: confirm before submitting any form marked with
 // data-confirm (e.g. the delete buttons). Without JS the form still submits.

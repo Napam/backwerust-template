@@ -1,9 +1,10 @@
 # Backwerust Template
 
-Opinionated template for SSR-first Rust apps: axum for HTTP, minijinja for HTML,
-tailwindcss for styling, Lit for web components, sqlite for data, sqlx for
-migrations and queries. Everything compiles into a single binary. All tooling
-is managed by mise. Live reload development loop is set up and ready to go.
+Opinionated template for SSR-first Rust apps: axum for HTTP, maud for
+compile-time checked HTML, tailwindcss for styling, Lit for web components,
+sqlite for data, sqlx for migrations and queries. Everything compiles into a
+single binary. All tooling is managed by mise. Live reload development loop is
+set up and ready to go.
 
 It's a base for hypermedia-driven applications, and pairs well with frameworks
 like [Datastar](https://data-star.dev/) (wired up in the example) or
@@ -40,8 +41,10 @@ Requirements:
 4. Open `localhost:6900`. There is no proxy port: the server listens on `PORT`
    (default `6900`) and the live reload script is injected into the page.
 
-5. Start making changes: the application entrypoint is `src/main.rs` and the
-   frontend root page is `templates/root.html`.
+5. Start making changes. The application entrypoint is `src/main.rs`; routes
+   live in `src/routes/root.rs`; page markup is the `views::root` function in
+   `src/views/mod.rs`; Lit components are in `web/lib/web-components`; page JS
+   is `web/pages/root.ts`.
 
 For production build: `task build` (output in `bin/app`).
 
@@ -64,9 +67,8 @@ There is no script for this. Rename by hand:
    the server binary.
 3. `Taskfile.yml`: change `cp target/release/backwerust ./bin/app`, and the two
    `backwerust:latest` image references in the `build.docker` tasks.
-4. Brand strings: the title in `templates/base.html`, the heading in
-   `templates/root.html`, `README.md`, and the startup log line in
-   `src/main.rs`.
+4. Brand strings: the `layout` title and the `root` heading in
+   `src/views/mod.rs`, `README.md`, and the startup log line in `src/main.rs`.
 
 The Dockerfile needs no change: it copies `bin/app`, whatever the binary is
 called.
@@ -78,19 +80,26 @@ package (`my-app` becomes `my_app`). A package rename means updating the
 
 ## How it works
 
-The server renders HTML with minijinja (Jinja templates). Forms POST to the
-server, which processes and redirects back with a `303`. No client-side JS is
-required. Datastar and web components enhance where needed.
+The server renders HTML with maud. A view is a Rust function in
+`src/views/mod.rs` that returns `Markup`, and `html!` checks field names and
+types at compile time, so a renamed field or a wrong type fails the build
+instead of a request. Forms POST to the server, which processes and redirects
+back with a `303`. No client-side JS is required. Datastar and web components
+enhance where needed.
 
-- Debug builds load templates from `templates/` on disk with auto reload, so an
-  edit shows up on the next request. The live reload watcher refreshes the
-  browser; no recompile or restart. Release builds embed the same directory with
-  minijinja-embed, so the binary needs no template directory at runtime.
-- Templates are not checked at compile time. Handlers pass plain
-  `#[derive(Serialize)]` context structs. `UndefinedBehavior::Strict` turns a
-  missing field into a failed render (500) instead of blank output, and
-  `tests/render.rs` renders the real templates with representative data,
-  including NULL names and an editing row.
+- The route -> view path is short: a handler in `src/routes/root.rs` calls
+  `views::root`, which builds the page shell with `layout` and renders the CRUD
+  example from `views::crud`. A Datastar patch re-renders `views::crud` into the
+  section named by `views::CRUD_ID`. Lit components live in
+  `web/lib/web-components` and are registered by the shared bundle.
+- View edits are Rust changes. There is no template directory and no runtime
+  template reload: bacon rebuilds and restarts the server, and the browser
+  reconnects. Changes under `web/static` trigger tower-livereload without a
+  restart.
+- `tests/render.rs` renders the real view functions and asserts the URLs,
+  data attributes and escaping the browser sees.
+- Handlers return `routes::Result`; `AppError` carries the status, and both
+  missing rows and server failures render through `views::error`.
 - Debug builds serve `web/static` from disk with `no-store`, and
   tower-livereload injects a reload script. Release builds embed the same
   directory with rust-embed and serve it with ETag-based cache headers
@@ -102,13 +111,13 @@ required. Datastar and web components enhance where needed.
 - Dockerfile builds a slim glibc image, not scratch: sqlx's sqlite driver links
   C, so the builder needs a C toolchain and the runtime needs a libc. The image
   still carries one self-contained binary.
-- rustfmt, clippy, eslint, prettier and tsc are preconfigured. `task check`
-  runs a full backend+frontend static, lint, and test check.
+- rustfmt, clippy, eslint, prettier, tsc and lit-analyzer are preconfigured.
+  `task check` runs a full backend+frontend static, lint, and test check.
 
 Tech stack:
 
 - [axum](https://github.com/tokio-rs/axum) - HTTP router and server
-- [minijinja](https://github.com/mitsuhiko/minijinja) - Jinja HTML templates
+- [maud](https://github.com/lambda-fairy/maud) - compile-time HTML templates in Rust
 - [tailwindcss](https://tailwindcss.com/) - CSS styling
 - [Lit](https://lit.dev/) - web components
 - [Datastar](https://data-star.dev/) - hypermedia over SSE
@@ -127,20 +136,29 @@ produces two kinds of bundles:
   `static/bundle.js`. This is where web components live, and it is loaded
   synchronously in `<head>` so all custom elements are registered before the
   body parses.
-- **Page bundles:** a `.ts` file in any other `web/` subdirectory (e.g.
-  `web/pages/root.ts`, next to its template) becomes its own bundle at
-  `static/page-files/<dir>/<name>.js`. Load it on just that page:
+- **Page bundles:** a `.ts` file under `web/pages/` becomes its own bundle
+  under `static/page-files/pages/`, keeping the relative path.
+  `web/pages/root.ts` pairs with `views::root` in `src/views/mod.rs`. Load it on
+  just that page:
 
   ```html
   <script src="/static/bundle.js"></script>
   <script defer src="/static/page-files/pages/root.js"></script>
   ```
 
-Page files are plain top-level browser code, no exports needed. Avoid
-importing from `lib/`: the iife bundle has no code splitting, so each import
-duplicates code into the page bundle. Small utility imports are fine if you
-accept that. Don't import web components from `lib/`: re-registering an
-already-defined custom element throws.
+Page files are plain top-level browser code, no exports needed. `pages/` is an
+allowlist: files in other top-level directories are not bundled, so scripts and
+tests cannot be served by accident. Avoid importing from `lib/`: the iife
+bundle has no code splitting, so each import duplicates code into the page
+bundle. Small utility imports are fine if you accept that. Don't import a
+module that defines a custom element, directly or through a re-export:
+`bundle.js` already registers every `lib/` component, and the page build fails
+on that import.
+
+Tailwind scans the paths declared in `web/tailwind.css`: `source(none)` turns
+automatic detection off, and the explicit `@source` lines cover
+`src/**/*.rs`, `web/lib/**/*.ts`, and `web/pages/**/*.ts`. Class names in a new
+source directory need their own `@source` line.
 
 Datastar is vendored at `web/assets/vendor/datastar.js` and served from
 `/static/assets/vendor/datastar.js` as a module. Load it before page scripts
@@ -195,14 +213,13 @@ Migrations also run on server startup when `DB_MIGRATE_ON_START=true` (set by
 the Taskfile and the Docker image; the binary defaults to false). The database
 path comes from `DB_PATH` (Taskfile default `./data/sqlite.db`).
 
-Queries live next to their handlers in `src/db/`, for example
-`src/db/users.rs`. They use the runtime-checked `sqlx::query_as` API on
-purpose, so a fresh clone builds without a database or a `DATABASE_URL`. If you
-want compile-time checked SQL, replace those calls with the `query!` /
-`query_as!` macros, set `DATABASE_URL=sqlite:./data/sqlite.db`, apply the
-migrations, and run `cargo sqlx prepare` to commit the `.sqlx` query cache so
-builds keep working offline. That adds a `cargo sqlx` tool requirement to the
-project.
+Queries live in `src/db/`, for example `src/db/users.rs`. They use the
+runtime-checked `sqlx::query_as` API on purpose, so a fresh clone builds
+without a database or a `DATABASE_URL`. If you want compile-time checked SQL,
+replace those calls with the `query!` / `query_as!` macros, set
+`DATABASE_URL=sqlite:./data/sqlite.db`, apply the migrations, and run
+`cargo sqlx prepare` to commit the `.sqlx` query cache so builds keep working
+offline. That adds a `cargo sqlx` tool requirement to the project.
 
 ## Linting and checks
 
@@ -212,30 +229,44 @@ project.
   -- -D warnings`, and `cargo test --all-targets --locked`. There is no
   separate `cargo build`: clippy checks every target and the test harnesses
   link, so an extra build only duplicates work.
-- `task check.web`: prettier, eslint, `tsc --noEmit`, a bundle build, and a
-  Tailwind build into `tmp/check-static` (so a running dev session isn't
-  clobbered)
+- `task check.web`: prettier, eslint, `tsc --noEmit`, `lit-analyzer` on
+  `web/lib/**/*.ts`, a bundle build, a Tailwind build into
+  `web/tmp/check-static` (so a running dev session isn't clobbered), and a
+  page-guard fixture check. After the build,
+  `web/scripts/check-static-refs.ts` asserts that every `/static/...` URL in
+  `src/views/**/*.rs` exists in the output, so a renamed page file or asset
+  fails the check instead of 404ing in production.
+
+`tsc` ignores the `ts-lit-plugin` setting in `web/tsconfig.json` because that
+is editor-only, so `lit-analyzer` is the check that covers Lit templates in
+`web/lib/`.
 
 `task fix` auto-fixes the formatting and lint issues it can
 (`cargo fmt`, `clippy --fix`, `prettier --write`, `eslint --fix`) and rebuilds
 to catch fixes that left the tree uncompilable. The git pre-push hook
 (enabled by `task init`) runs `task check` as well.
 
-Templates are standard Jinja, so `djlint --reformat templates` formats them and
-Jinja language tooling (jinja-lsp, Neovim tree-sitter) understands them. djlint
-is not part of `task check`.
+Maud views are Rust, so editor support comes from rust-analyzer and
+`cargo fmt --check` in `task check.rust` covers the crate. The markup layout
+inside `html!` is not reflowed by rustfmt, so keep it tidy by hand. There is no
+template directory and no template-specific formatter or language server.
 
 ## What next
 
 You may want to:
 
+- **Add a page:** add a handler in `src/routes/<name>.rs` and register it in
+  `src/routes/mod.rs`, add a view function in `src/views/mod.rs`, and pair it
+  with `web/pages/<name>.ts` when it needs page JS. `views::root` and
+  `web/pages/root.ts` are the example to copy.
 - **Add more hypermedia:** the example uses Datastar for update and delete
-  (create is a plain POST + `303`). htmx or Alpine AJAX work too; handlers already answer plain form
-  posts, so progressive enhancement stays easy.
+  (create is a plain POST + `303`). htmx or Alpine AJAX work too; handlers
+  already answer plain form posts, so progressive enhancement stays easy.
 - **Swap the database:** change the sqlx feature and `SqlitePool` in
   `src/db/mod.rs` to Postgres or MySQL, update `DB_PATH` to a
   `DATABASE_URL`-style key, and point the migration binary at the new database.
-- **Switch to JSON logging:** replace the fmt layer in `src/main.rs` with
+- **Switch to JSON logging:** enable the `json` feature on `tracing-subscriber`,
+  then replace the fmt layer in `src/main.rs` with
   `tracing_subscriber::fmt().json()` for production-ready JSON logs.
 
 ## Project structure
@@ -263,21 +294,20 @@ You may want to:
 │
 ├── src
 │   ├── main.rs          server entrypoint
+│   ├── lib.rs           library crate root: modules below
 │   ├── assets.rs        static assets: disk in dev, embedded in release
 │   ├── config.rs        env config (HOST, PORT, DB_PATH, ...)
 │   ├── dev.rs           live reload wiring for debug builds
 │   ├── sse.rs           Datastar SSE helpers
-│   ├── templates.rs     minijinja environment and render helper
 │   ├── db/              pool, queries, migration runner
-│   ├── routes/          axum handlers
+│   ├── routes/          axum handlers, error type, router
+│   ├── views/           maud views: layout, error, root, crud, users_table
 │   └── bin/migrate.rs     standalone migration binary
 │
 ├── Taskfile.yml         taskfile with all tasks
 │
-├── templates            Jinja templates, disk in dev, embedded in release
-│
 ├── tests
-│   └── render.rs        template render tests, strict undefined guardrail
+│   └── render.rs        view output tests: URLs, data attrs, escaping
 │
 ├── tmp                  temp files, gitignored inside
 │
@@ -285,9 +315,10 @@ You may want to:
     ├── assets           committed static assets (→ static/assets/)
     ├── build.ts         bundles lib/ and pages/, hardlinks assets
     ├── lib              shared ts libraries and Lit components (→ static/bundle.js)
-    ├── pages            page-specific entries (→ static/page-files/)
+    ├── pages            page-specific entries (→ static/page-files/pages/)
+    ├── scripts          build/check scripts (static refs, page guard)
     ├── static           build artifacts, gitignored
-    └── tailwind.css     tailwind entry and theme
+    └── tailwind.css     tailwind entry, source list, and theme
 ```
 
 ## Who this is for

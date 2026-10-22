@@ -118,7 +118,9 @@ tasks:
     desc: Build the production js bundles
     dir: ./web
     cmds:
-      - ENV=prod bun run build.ts
+      # NODE_ENV drives package export conditions (lit ships a dev build
+      # without it); ENV only controls minify/sourcemaps in build.ts.
+      - NODE_ENV=production ENV=prod bun run build.ts
 
   check:
     desc: Run all checks (formatting, linting, compile)
@@ -142,25 +144,34 @@ tasks:
         exit $ec
 
   check.web:
-    desc: Prettier, ESLint, TypeScript, and build checks (parallel)
+    desc: Prettier, ESLint, TypeScript, Lit analyzer, page guard, build, and static-ref checks (parallel)
     dir: ./web
     deps:
       - init.js
     cmds:
       # OUTDIR: don't clobber web/static while a dev session or build is running
       - |
+        rm -rf tmp/check-static
         mkdir -p tmp/check-static
         bunx prettier --check . & p1=$!
         bunx eslint . & p2=$!
         bunx tsc --noEmit & p3=$!
-        OUTDIR=tmp/check-static bun run build.ts & p4=$!
-        bunx tailwindcss -i tailwind.css -o tmp/check-static/tailwind.css --minify --cwd . & p5=$!
+        bunx lit-analyzer 'lib/**/*.ts' --strict & p4=$!
+        OUTDIR=tmp/check-static bun run build.ts & p5=$!
+        bunx tailwindcss -i tailwind.css -o tmp/check-static/tailwind.css --minify --cwd . & p6=$!
+        bun run scripts/check-page-guard.ts & p7=$!
         ec=0
         wait $p1 || ec=$?
         wait $p2 || ec=$?
         wait $p3 || ec=$?
         wait $p4 || ec=$?
         wait $p5 || ec=$?
+        wait $p6 || ec=$?
+        wait $p7 || ec=$?
+        # After the build: every /static/... URL in src/views must exist under OUTDIR.
+        if [ -f tmp/check-static/bundle.js ] && [ -f tmp/check-static/tailwind.css ]; then
+          OUTDIR=tmp/check-static bun run scripts/check-static-refs.ts || ec=$?
+        fi
         exit $ec
 
   fix:

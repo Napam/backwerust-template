@@ -8,44 +8,63 @@
   - Rust code, run `task check.rust`
   - web code, run `task check.web`
   - if both, run `task check` to check everything
+  - `check.web` runs prettier, eslint, tsc, lit-analyzer, the bundle and Tailwind
+    builds, a page-guard fixture check, and the static-ref check; `check.rust`
+    runs fmt, clippy, and tests
   - to auto-fix formatting/linting, run `task fix` (or `task fix.rust` / `task fix.web`)
 
-- Never put inline SVGs in `templates/`. Icons are Lit web components in
-  `web/lib/web-components/icons`, so they inherit `currentColor`, size with
-  font-size, and can be reused in shadow DOM.
+- Never put inline SVGs in views (`src/views/mod.rs`). Icons are Lit web
+  components in `web/lib/web-components/icons`, so they inherit `currentColor`,
+  size with font-size, and can be reused in shadow DOM.
 
 - JS bundling (see `web/build.ts`):
   - `web/lib/**/*.ts` → single shared `static/bundle.js`, loaded synchronously
     in `<head>` (registers all web components before the body parses).
-  - `.ts` files in any other top-level dir (e.g. `web/pages/root.ts`, next to
-    its template) → per-file page bundles in `static/page-files/<dir>/`,
-    loaded per page with `<script defer>`.
+  - `.ts` files under `web/pages/` → per-file page bundles under
+    `static/page-files/pages/`, loaded per page with `<script defer>`.
+    `pages/` is an allowlist: other top-level dirs are not bundled.
   - Page files: avoid importing from `lib/`. Small utility imports are fine,
     but each duplicates code into the page bundle (iife has no code
-    splitting). Don't import web components from `lib/`: re-registering them
-    throws.
+    splitting). Don't import a module that defines a custom element, directly
+    or through a re-export: `bundle.js` already registers it, and the page
+    build fails on that import.
   - `web/assets/**` is served as-is under `static/assets/**` (hardlinked, not
     copied). Prebuilt third-party scripts go there; normal packages belong in
     `web/lib` or a page file and come in through `bun add`.
+  - Static URLs in views are plain strings. `task check.web` runs
+    `web/scripts/check-static-refs.ts` after the build and fails when a
+    `/static/...` URL in `src/views/**/*.rs` has no file in the output.
 
-- Templates are Jinja files in `templates/`, rendered with minijinja from
-  `src/templates.rs`. Debug builds load them from disk with auto reload:
-  editing one shows up on the next request and the live reload watcher
-  refreshes the browser, no recompile or restart. Release builds embed them
-  with minijinja-embed, so a template change needs a rebuild there.
-- There is no compile-time field checking: handlers pass `#[derive(Serialize)]`
-  context structs. Every variable must exist at render time
-  (`UndefinedBehavior::Strict`), so use `{{ user.name or '' }}` for nullable
-  columns. `tests/render.rs` renders the real templates as the guardrail.
-  `djlint --reformat templates` formats them; they are plain Jinja.
+- Tailwind: `web/tailwind.css` uses `@import 'tailwindcss' source(none)` plus
+  explicit `@source` lines for `src/**/*.rs`, `web/lib/**/*.ts`, and
+  `web/pages/**/*.ts`. Automatic detection is off, so a source directory with
+  class names needs its own `@source` line.
+
+- Views are maud functions in `src/views/mod.rs` that return `Markup`. `html!`
+  checks field names and types at compile time, so a renamed field or a wrong
+  type fails the build instead of a request. There is no template directory and
+  no runtime template reload: a view edit is a Rust change, and bacon rebuilds
+  and restarts the server.
+  - A route handler in `src/routes/<page>.rs` calls the view; register it in
+    `src/routes/mod.rs`. `views::root` builds the page shell with `layout` and
+    calls `views::crud`; small partials are plain functions in the same module
+    (`users_table`, `user_row`, `delete_form`).
+  - Handlers return `routes::Result` with `AppError`. A missing row is
+    `AppError::not_found(...)`; handler errors render `views::error` with their
+    status.
+  - `tests/render.rs` renders the real views and asserts URLs, data attributes,
+    and escaping.
+  - `html!` bodies are not reflowed by rustfmt, so keep the markup layout tidy
+    by hand.
 
 - Datastar covers progressive enhancement:
   - Forms work as plain POST + 303 redirect for clients without JS.
   - Request handlers that have a Datastar caller answer it with SSE
     `datastar-patch-elements` instead of a redirect; the wire helpers live in
-    `src/sse.rs`.
-  - Keep page JS for behaviour that Datastar expressions can't express, and
-    put it in a page file, not in `<script>` tags in templates.
+    `src/sse.rs`. Use `views::CRUD_ID` for the patch target instead of a second
+    literal.
+  - Keep page JS for behaviour that Datastar expressions can't express, and put
+    it in `web/pages/`, not in a `<script>` tag emitted by a view.
 
 - Database: schema changes go through sqlx migrations in `db/migrations/`
   (`task db.new -- <name>`, then edit the file, then `task db.migrate`).

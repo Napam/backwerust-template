@@ -20,10 +20,10 @@ fn root_renders_list_and_inline_edit_form() {
         user(2, None),
         user(3, Some("<script>alert(1)</script>")),
     ];
-    let html = views::root(&users, 1).into_string();
+    let html = views::root(&users, Some(1)).into_string();
 
     assert!(html.starts_with("<!DOCTYPE html>"));
-    assert!(html.contains("id=\"crud\""));
+    assert!(html.contains(&format!("id=\"{}\"", views::CRUD_ID)));
     assert!(html.contains("action=\"/users\""));
     assert!(html.contains("id=\"edit-1\""));
     assert!(html.contains("action=\"/users/1/update\""));
@@ -42,7 +42,7 @@ fn root_renders_list_and_inline_edit_form() {
 #[test]
 fn null_name_renders_as_empty_text_and_no_edit_form() {
     let users = vec![user(1, Some("Ada")), user(2, None)];
-    let html = views::crud(&users, 0).into_string();
+    let html = views::crud(&users, None).into_string();
 
     assert!(html.contains("<td class=\"pt-2\">Ada</td>"));
     assert!(html.contains("<td class=\"pt-2\"></td>"));
@@ -53,7 +53,7 @@ fn null_name_renders_as_empty_text_and_no_edit_form() {
 #[test]
 fn user_text_is_html_escaped() {
     let users = vec![user(7, Some("<script>alert(1)</script>"))];
-    let html = views::crud(&users, 0).into_string();
+    let html = views::crud(&users, None).into_string();
 
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     assert!(!html.contains("<script>alert(1)</script>"));
@@ -62,7 +62,7 @@ fn user_text_is_html_escaped() {
 #[test]
 fn user_text_is_escaped_inside_attributes() {
     let users = vec![user(7, Some("a\"b"))];
-    let html = views::crud(&users, 7).into_string();
+    let html = views::crud(&users, Some(7)).into_string();
 
     assert!(html.contains("value=\"a&quot;b\""));
 }

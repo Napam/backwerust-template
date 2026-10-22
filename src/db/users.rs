@@ -21,23 +21,25 @@ pub async fn create(pool: &SqlitePool, name: Option<&str>) -> Result<i64, sqlx::
     Ok(id)
 }
 
+/// Updates one user. Returns `false` when no user has that id.
 pub async fn update_name(
     pool: &SqlitePool,
     id: i64,
     name: Option<&str>,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE users SET name = ? WHERE id = ?")
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("UPDATE users SET name = ? WHERE id = ?")
         .bind(name)
         .bind(id)
         .execute(pool)
         .await?;
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
 
-pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM users WHERE id = ?")
+/// Deletes one user. Returns `false` when no user has that id.
+pub async fn delete(pool: &SqlitePool, id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM users WHERE id = ?")
         .bind(id)
         .execute(pool)
         .await?;
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
