@@ -103,7 +103,7 @@ required. Datastar and web components enhance where needed.
   C, so the builder needs a C toolchain and the runtime needs a libc. The image
   still carries one self-contained binary.
 - rustfmt, clippy, eslint, prettier and tsc are preconfigured. `task check`
-  runs a full backend+frontend static, lint, compile, and test check.
+  runs a full backend+frontend static, lint, and test check.
 
 Tech stack:
 
@@ -208,9 +208,10 @@ project.
 
 `task check` runs two groups in parallel:
 
-- `task check.rust`: `cargo fmt --check`, `cargo clippy --all-targets -- -D
-  warnings`, `cargo build --all-targets --locked`, and `cargo test
-  --all-targets`
+- `task check.rust`: `cargo fmt --check`, `cargo clippy --all-targets --locked
+  -- -D warnings`, and `cargo test --all-targets --locked`. There is no
+  separate `cargo build`: clippy checks every target and the test harnesses
+  link, so an extra build only duplicates work.
 - `task check.web`: prettier, eslint, `tsc --noEmit`, a bundle build, and a
   Tailwind build into `tmp/check-static` (so a running dev session isn't
   clobbered)

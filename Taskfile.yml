@@ -84,10 +84,12 @@ tasks:
         ignore_error: true
 
   dev.rust:
-    desc: Build and run the server, restarting it on Rust, template, or migration changes
+    desc: Build and run the server, restarting it on Rust and migration changes
     cmds:
       # bacon runs the new binary as it lands (debug build: assets come from
-      # disk, live reload is on) and kills/restarts it on change. See bacon.toml.
+      # disk, live reload is on) and kills/restarts it on change. Templates
+      # reload from disk, so editing one refreshes the browser without a
+      # restart. See bacon.toml.
       - bacon
 
   build:
@@ -125,18 +127,18 @@ tasks:
       - check.web
 
   check.rust:
-    desc: Rust formatting, lint, compile and render test check (parallel)
+    desc: Rust formatting, lint and test check
     cmds:
+      # No separate `cargo build`: clippy checks every target and `cargo test`
+      # links the test harnesses, so an extra build only duplicates work.
       - |
         cargo fmt --check & p1=$!
-        cargo clippy --all-targets -- -D warnings & p2=$!
-        cargo build --all-targets --locked & p3=$!
-        cargo test --all-targets & p4=$!
+        cargo clippy --all-targets --locked -- -D warnings & p2=$!
+        cargo test --all-targets --locked & p3=$!
         ec=0
         wait $p1 || ec=$?
         wait $p2 || ec=$?
         wait $p3 || ec=$?
-        wait $p4 || ec=$?
         exit $ec
 
   check.web:
