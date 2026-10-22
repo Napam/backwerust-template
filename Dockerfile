@@ -2,8 +2,8 @@
 
 # glibc + bundled sqlite instead of musl/scratch: sqlx's sqlite feature compiles
 # and links C (libsqlite3-sys), which needs a C toolchain in the builder and a
-# compatible libc at runtime. The result is still a single Go-style binary with
-# templates, static assets and migrations embedded.
+# compatible libc at runtime. The result is still a single self-contained binary
+# with static assets and migrations embedded.
 FROM rust:1.99-trixie AS builder
 
 # bun drives the web build. Copied from the official image instead of piping a

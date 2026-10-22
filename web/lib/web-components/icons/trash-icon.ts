@@ -1,7 +1,7 @@
 import { html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { twMerge } from 'tailwind-merge'
-import { LightLitElement } from '../light-lit-element'
+import { LightLitElement } from '../base/light-lit-element'
 
 @customElement('trash-icon')
 export class TrashIcon extends LightLitElement {

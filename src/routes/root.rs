@@ -6,6 +6,7 @@ use maud::Markup;
 use serde::Deserialize;
 
 use crate::db::users;
+use crate::paths;
 use crate::routes::{AppError, AppState, Result};
 use crate::sse;
 use crate::views::{self, CRUD_ID};
@@ -30,17 +31,20 @@ pub async fn index(
 ) -> Result<Markup> {
     let users = users::list(&state.pool).await?;
 
-    Ok(views::root(&users, query.edit))
+    Ok(views::root::page(&users, query.edit))
 }
 
-pub async fn create(State(state): State<AppState>, Form(form): Form<NameForm>) -> Result<Redirect> {
+pub async fn create_user(
+    State(state): State<AppState>,
+    Form(form): Form<NameForm>,
+) -> Result<Redirect> {
     let id = users::create(&state.pool, empty_to_none(&form.name)).await?;
     tracing::info!(id, "created user");
 
-    Ok(Redirect::to("/"))
+    Ok(Redirect::to(paths::INDEX))
 }
 
-pub async fn update(
+pub async fn update_user(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     headers: HeaderMap,
@@ -54,10 +58,10 @@ pub async fn update(
     if sse::is_datastar_request(&headers) {
         return crud_patch(&state).await;
     }
-    Ok(Redirect::to("/").into_response())
+    Ok(Redirect::to(paths::INDEX).into_response())
 }
 
-pub async fn delete(
+pub async fn delete_user(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     headers: HeaderMap,
@@ -70,7 +74,7 @@ pub async fn delete(
     if sse::is_datastar_request(&headers) {
         return crud_patch(&state).await;
     }
-    Ok(Redirect::to("/").into_response())
+    Ok(Redirect::to(paths::INDEX).into_response())
 }
 
 /// Missing row: a plain request gets a 404, a Datastar request gets the
@@ -87,7 +91,7 @@ async fn missing_user(state: &AppState, headers: &HeaderMap, id: i64) -> Result<
 /// Re-renders the CRUD section for a Datastar patch after an edit or delete.
 async fn crud_patch(state: &AppState) -> Result<Response> {
     let users = users::list(&state.pool).await?;
-    let crud = views::crud(&users, None);
+    let crud = views::root::crud(&users, None);
 
     Ok(sse::patch_response(
         &format!("#{CRUD_ID}"),
@@ -134,7 +138,7 @@ mod tests {
             pool: test_pool().await,
         };
 
-        let response = update(
+        let response = update_user(
             State(state),
             Path(99),
             datastar_headers(),
@@ -161,7 +165,7 @@ mod tests {
             pool: test_pool().await,
         };
 
-        let response = delete(State(state), Path(99), datastar_headers()).await;
+        let response = delete_user(State(state), Path(99), datastar_headers()).await;
         let Ok(response) = response else {
             panic!("handler returned an error");
         };
@@ -182,7 +186,7 @@ mod tests {
             pool: test_pool().await,
         };
 
-        let response = update(
+        let response = update_user(
             State(state),
             Path(99),
             HeaderMap::new(),

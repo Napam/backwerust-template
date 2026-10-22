@@ -72,12 +72,12 @@ async function bundleLib() {
 
 /**
  * One bundle per page file into page-files/ (pages/root.ts → page-files/pages/root.js).
- * pages/ is an allowlist: only code next to a rendered page belongs here, so
+ * pages/ is an allowlist: only code for a rendered page belongs here, so
  * scripts and tests can never be served as page bundles.
  *
- * Fails when a page pulls in a module that defines a custom element:
- * bundle.js is a synchronous head script and registers every lib/ component
- * first, so a deferred page bundle that defines one again throws.
+ * Fails when a page pulls in a module under lib/web-components/ outside base/:
+ * bundle.js is a synchronous head script and registers every component first,
+ * so a deferred page bundle that defines one again throws.
  */
 async function bundlePageFiles() {
   const glob = new Glob('pages/**/*.ts')

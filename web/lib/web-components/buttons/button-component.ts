@@ -1,8 +1,8 @@
 import { html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { twJoin, twMerge } from 'tailwind-merge'
-import { StyledLitElement } from '../styled-lit-element'
-import { focusClass } from '../common'
+import { StyledLitElement } from '../base/styled-lit-element'
+import { focusClass } from '../base/common'
 
 const defaultButtonClass = twJoin(
   'bg-primary-400 hover:bg-primary-500 text-white',

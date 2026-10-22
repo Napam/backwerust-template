@@ -1,6 +1,6 @@
 import { html } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
-import { LightLitElement } from '../light-lit-element'
+import { LightLitElement } from '../base/light-lit-element'
 import { twJoin } from 'tailwind-merge'
 import type { Theme } from '../../theme'
 import '../icons/sun-icon'

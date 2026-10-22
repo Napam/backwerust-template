@@ -1,5 +1,5 @@
 import { LitElement, ReactiveElement } from 'lit'
-import { getTailwindCSSHREF } from './utils/css'
+import { getTailwindCSSHREF } from './css'
 
 // Fetches the CSS text synchronously (hits the HTTP cache since the page
 // <link> tag already loaded the file), constructs a CSSStyleSheet object

@@ -41,10 +41,10 @@ Requirements:
 4. Open `localhost:6900`. There is no proxy port: the server listens on `PORT`
    (default `6900`) and the live reload script is injected into the page.
 
-5. Start making changes. The application entrypoint is `src/main.rs`; routes
-   live in `src/routes/root.rs`; page markup is the `views::root` function in
-   `src/views/mod.rs`; Lit components are in `web/lib/web-components`; page JS
-   is `web/pages/root.ts`.
+5. Start making changes. The application entrypoint is `src/main.rs`; the
+   router is `src/routes/mod.rs`; handlers are in `src/routes/root.rs`; the
+   page view is `src/views/root.rs`; URL patterns are in `src/paths.rs`; Lit
+   components are in `web/lib/web-components`; page JS is `web/pages/root.ts`.
 
 For production build: `task build` (output in `bin/app`).
 
@@ -67,8 +67,9 @@ There is no script for this. Rename by hand:
    the server binary.
 3. `Taskfile.yml`: change `cp target/release/backwerust ./bin/app`, and the two
    `backwerust:latest` image references in the `build.docker` tasks.
-4. Brand strings: the `layout` title and the `root` heading in
-   `src/views/mod.rs`, `README.md`, and the startup log line in `src/main.rs`.
+4. Brand strings: the `layout` title in `src/views/mod.rs`, the page heading
+   in `src/views/root.rs`, the theme storage key in `web/lib/theme.ts`,
+   `README.md`, and the startup log line in `src/main.rs`.
 
 The Dockerfile needs no change: it copies `bin/app`, whatever the binary is
 called.
@@ -80,26 +81,29 @@ package (`my-app` becomes `my_app`). A package rename means updating the
 
 ## How it works
 
-The server renders HTML with maud. A view is a Rust function in
-`src/views/mod.rs` that returns `Markup`, and `html!` checks field names and
-types at compile time, so a renamed field or a wrong type fails the build
-instead of a request. Forms POST to the server, which processes and redirects
-back with a `303`. No client-side JS is required. Datastar and web components
-enhance where needed.
+The server renders HTML with maud. A view is a Rust function under
+`src/views/`, one module per page, that returns `Markup`, and `html!` checks
+field names and types at compile time, so a renamed field or a wrong type fails
+the build instead of a request. Forms POST to the server, which processes and
+redirects back with a `303`. No client-side JS is required. Datastar and web
+components enhance where needed.
 
 - The route -> view path is short: a handler in `src/routes/root.rs` calls
-  `views::root`, which builds the page shell with `layout` and renders the CRUD
-  example from `views::crud`. A Datastar patch re-renders `views::crud` into the
-  section named by `views::CRUD_ID`. Lit components live in
-  `web/lib/web-components` and are registered by the shared bundle.
-- View edits are Rust changes. There is no template directory and no runtime
-  template reload: bacon rebuilds and restarts the server, and the browser
-  reconnects. Changes under `web/static` trigger tower-livereload without a
-  restart.
+  `views::root::page`, which builds the page shell with `layout` and renders the
+  CRUD example from `views::root::crud`. A Datastar patch re-renders
+  `views::root::crud` into the section named by `views::CRUD_ID`. Lit components
+  live in `web/lib/web-components` and are registered by the shared bundle.
+- Route patterns and the links built from them live in `src/paths.rs`, so the
+  router, views, redirects and tests cannot drift apart.
+- View edits are Rust changes: bacon rebuilds and restarts the server, and the
+  browser reconnects. Changes under `web/static` trigger tower-livereload
+  without a restart.
 - `tests/render.rs` renders the real view functions and asserts the URLs,
   data attributes and escaping the browser sees.
-- Handlers return `routes::Result`; `AppError` carries the status, and both
-  missing rows and server failures render through `views::error`.
+- Handlers return `routes::Result`; `AppError` carries the status, and missing
+  rows and server failures render through `views::error`. A Datastar request
+  for a missing row re-renders the CRUD section instead, so a row deleted in
+  another tab disappears from the page.
 - Debug builds serve `web/static` from disk with `no-store`, and
   tower-livereload injects a reload script. Release builds embed the same
   directory with rust-embed and serve it with ETag-based cache headers
@@ -138,22 +142,23 @@ produces two kinds of bundles:
   body parses.
 - **Page bundles:** a `.ts` file under `web/pages/` becomes its own bundle
   under `static/page-files/pages/`, keeping the relative path.
-  `web/pages/root.ts` pairs with `views::root` in `src/views/mod.rs`. Load it on
-  just that page:
+  `web/pages/root.ts` pairs with `views::root::page` in `src/views/root.rs`.
+  Load it on just that page, inside `html!`:
 
-  ```html
-  <script src="/static/bundle.js"></script>
-  <script defer src="/static/page-files/pages/root.js"></script>
+  ```rust
+  script src="/static/bundle.js" {}
+  script defer src="/static/page-files/pages/root.js" {}
   ```
 
 Page files are plain top-level browser code, no exports needed. `pages/` is an
 allowlist: files in other top-level directories are not bundled, so scripts and
 tests cannot be served by accident. Avoid importing from `lib/`: the iife
 bundle has no code splitting, so each import duplicates code into the page
-bundle. Small utility imports are fine if you accept that. Don't import a
-module that defines a custom element, directly or through a re-export:
-`bundle.js` already registers every `lib/` component, and the page build fails
-on that import.
+bundle. Small utility imports are fine if you accept that. Don't import from
+`lib/web-components/` outside `base/`: `bundle.js` already registers every
+component under that directory, and the page build fails on the import.
+`web/lib/web-components/base/` holds the support classes that are safe for
+pages.
 
 Tailwind scans the paths declared in `web/tailwind.css`: `source(none)` turns
 automatic detection off, and the explicit `@source` lines cover
@@ -176,10 +181,10 @@ third-party scripts (a copied library, an analytics snippet) can be dropped in
 as-is without being reformatted or linted. If it's a normal package, prefer
 `bun add` and import it from `lib/` or a page bundle instead.
 
-Reference assets with the plain static path:
+Reference assets with the plain static path inside `html!`:
 
-```html
-<img src="/static/assets/logo.svg" alt="Logo" />
+```rust
+img src="/static/assets/logo.svg" alt="Logo";
 ```
 
 - Production builds embed `web/static` into the binary with rust-embed and
@@ -231,8 +236,8 @@ offline. That adds a `cargo sqlx` tool requirement to the project.
   link, so an extra build only duplicates work.
 - `task check.web`: prettier, eslint, `tsc --noEmit`, `lit-analyzer` on
   `web/lib/**/*.ts`, a bundle build, a Tailwind build into
-  `web/tmp/check-static` (so a running dev session isn't clobbered), and a
-  page-guard fixture check. After the build,
+  `web/tmp/check-static` (so a running dev session isn't clobbered), and the
+  page-guard tests (`bun test ./scripts`). After the build,
   `web/scripts/check-static-refs.ts` asserts that every `/static/...` URL in
   `src/views/**/*.rs` exists in the output, so a renamed page file or asset
   fails the check instead of 404ing in production.
@@ -248,17 +253,16 @@ to catch fixes that left the tree uncompilable. The git pre-push hook
 
 Maud views are Rust, so editor support comes from rust-analyzer and
 `cargo fmt --check` in `task check.rust` covers the crate. The markup layout
-inside `html!` is not reflowed by rustfmt, so keep it tidy by hand. There is no
-template directory and no template-specific formatter or language server.
+inside `html!` is not reflowed by rustfmt, so keep it tidy by hand.
 
 ## What next
 
 You may want to:
 
 - **Add a page:** add a handler in `src/routes/<name>.rs` and register it in
-  `src/routes/mod.rs`, add a view function in `src/views/mod.rs`, and pair it
-  with `web/pages/<name>.ts` when it needs page JS. `views::root` and
-  `web/pages/root.ts` are the example to copy.
+  `src/routes/mod.rs`, add `src/views/<name>.rs` with the page function, and
+  pair it with `web/pages/<name>.ts` when it needs page JS. `src/views/root.rs`
+  and `web/pages/root.ts` are the example to copy.
 - **Add more hypermedia:** the example uses Datastar for update and delete
   (create is a plain POST + `303`). htmx or Alpine AJAX work too; handlers
   already answer plain form posts, so progressive enhancement stays easy.
@@ -298,10 +302,11 @@ You may want to:
 │   ├── assets.rs        static assets: disk in dev, embedded in release
 │   ├── config.rs        env config (HOST, PORT, DB_PATH, ...)
 │   ├── dev.rs           live reload wiring for debug builds
+│   ├── paths.rs         route patterns and link builders
 │   ├── sse.rs           Datastar SSE helpers
 │   ├── db/              pool, queries, migration runner
 │   ├── routes/          axum handlers, error type, router
-│   ├── views/           maud views: layout, error, root, crud, users_table
+│   ├── views/           maud views: layout, error, one module per page
 │   └── bin/migrate.rs     standalone migration binary
 │
 ├── Taskfile.yml         taskfile with all tasks
@@ -315,6 +320,7 @@ You may want to:
     ├── assets           committed static assets (→ static/assets/)
     ├── build.ts         bundles lib/ and pages/, hardlinks assets
     ├── lib              shared ts libraries and Lit components (→ static/bundle.js)
+    │   └── web-components/base  page-safe support classes
     ├── pages            page-specific entries (→ static/page-files/pages/)
     ├── scripts          build/check scripts (static refs, page guard)
     ├── static           build artifacts, gitignored

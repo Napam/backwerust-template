@@ -1,7 +1,6 @@
-use serde::Serialize;
 use sqlx::{FromRow, SqlitePool};
 
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow)]
 pub struct User {
     pub id: i64,
     pub name: Option<String>,

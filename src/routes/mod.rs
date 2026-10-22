@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use tracing::Instrument;
 
 use crate::assets;
+use crate::paths;
 use crate::views;
 
 #[derive(Clone)]
@@ -61,10 +62,10 @@ impl IntoResponse for AppError {
 
 pub fn router(pool: SqlitePool) -> Router {
     Router::new()
-        .route("/", get(root::index))
-        .route("/users", post(root::create))
-        .route("/users/{id}/update", post(root::update))
-        .route("/users/{id}/delete", post(root::delete))
+        .route(paths::INDEX, get(root::index))
+        .route(paths::USERS, post(root::create_user))
+        .route(paths::USER_UPDATE, post(root::update_user))
+        .route(paths::USER_DELETE, post(root::delete_user))
         .route("/static/{*path}", get(assets::serve))
         .layer(middleware::from_fn(request_span))
         .with_state(AppState { pool })

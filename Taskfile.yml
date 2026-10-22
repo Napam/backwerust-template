@@ -87,9 +87,8 @@ tasks:
     desc: Build and run the server, restarting it on Rust and migration changes
     cmds:
       # bacon runs the new binary as it lands (debug build: assets come from
-      # disk, live reload is on) and kills/restarts it on change. Templates
-      # reload from disk, so editing one refreshes the browser without a
-      # restart. See bacon.toml.
+      # disk, live reload is on) and kills/restarts it on change. See
+      # bacon.toml.
       - bacon
 
   build:
@@ -144,7 +143,7 @@ tasks:
         exit $ec
 
   check.web:
-    desc: Prettier, ESLint, TypeScript, Lit analyzer, page guard, build, and static-ref checks (parallel)
+    desc: Prettier, ESLint, TypeScript, Lit analyzer, page-guard tests, build, and static-ref checks (parallel)
     dir: ./web
     deps:
       - init.js
@@ -159,7 +158,7 @@ tasks:
         bunx lit-analyzer 'lib/**/*.ts' --strict & p4=$!
         OUTDIR=tmp/check-static bun run build.ts & p5=$!
         bunx tailwindcss -i tailwind.css -o tmp/check-static/tailwind.css --minify --cwd . & p6=$!
-        bun run scripts/check-page-guard.ts & p7=$!
+        bun test ./scripts & p7=$!
         ec=0
         wait $p1 || ec=$?
         wait $p2 || ec=$?

@@ -1,8 +1,8 @@
-import { StyledLitElement } from '../styled-lit-element'
+import { StyledLitElement } from '../base/styled-lit-element'
 import { html, nothing, type PropertyValues } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { twJoin, twMerge } from 'tailwind-merge'
-import { focusWithinClass } from '../common'
+import { focusWithinClass } from '../base/common'
 
 const disabledClass = twJoin(
   'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 placeholder:text-gray-300',

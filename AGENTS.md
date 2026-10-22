@@ -9,11 +9,11 @@
   - web code, run `task check.web`
   - if both, run `task check` to check everything
   - `check.web` runs prettier, eslint, tsc, lit-analyzer, the bundle and Tailwind
-    builds, a page-guard fixture check, and the static-ref check; `check.rust`
+    builds, the page-guard tests, and the static-ref check; `check.rust`
     runs fmt, clippy, and tests
   - to auto-fix formatting/linting, run `task fix` (or `task fix.rust` / `task fix.web`)
 
-- Never put inline SVGs in views (`src/views/mod.rs`). Icons are Lit web
+- Never put inline SVGs in views (`src/views/`). Icons are Lit web
   components in `web/lib/web-components/icons`, so they inherit `currentColor`,
   size with font-size, and can be reused in shadow DOM.
 
@@ -25,9 +25,10 @@
     `pages/` is an allowlist: other top-level dirs are not bundled.
   - Page files: avoid importing from `lib/`. Small utility imports are fine,
     but each duplicates code into the page bundle (iife has no code
-    splitting). Don't import a module that defines a custom element, directly
-    or through a re-export: `bundle.js` already registers it, and the page
-    build fails on that import.
+    splitting). Don't import from `lib/web-components/` outside `base/`:
+    `bundle.js` already registers every component under that directory, and the
+    page build fails on the import. `lib/web-components/base/` holds the
+    support classes that are safe for pages.
   - `web/assets/**` is served as-is under `static/assets/**` (hardlinked, not
     copied). Prebuilt third-party scripts go there; normal packages belong in
     `web/lib` or a page file and come in through `bun add`.
@@ -40,18 +41,20 @@
   `web/pages/**/*.ts`. Automatic detection is off, so a source directory with
   class names needs its own `@source` line.
 
-- Views are maud functions in `src/views/mod.rs` that return `Markup`. `html!`
-  checks field names and types at compile time, so a renamed field or a wrong
-  type fails the build instead of a request. There is no template directory and
-  no runtime template reload: a view edit is a Rust change, and bacon rebuilds
-  and restarts the server.
+- Views are maud functions under `src/views/`, one module per page, and return
+  `Markup`. `html!` checks field names and types at compile time, so a renamed
+  field or a wrong type fails the build instead of a request. A view edit is a
+  Rust change: bacon rebuilds and restarts the server.
   - A route handler in `src/routes/<page>.rs` calls the view; register it in
-    `src/routes/mod.rs`. `views::root` builds the page shell with `layout` and
-    calls `views::crud`; small partials are plain functions in the same module
+    `src/routes/mod.rs`. `src/views/root.rs` builds the page shell with `layout`
+    and calls `crud`; small partials are plain functions in the same module
     (`users_table`, `user_row`, `delete_form`).
+  - Route patterns and link builders live in `src/paths.rs`. Use them in the
+    router, views, redirects and tests instead of repeating URL literals.
   - Handlers return `routes::Result` with `AppError`. A missing row is
     `AppError::not_found(...)`; handler errors render `views::error` with their
-    status.
+    status. A Datastar request for a missing row re-renders the CRUD section
+    instead of returning 404, so a row deleted in another tab disappears.
   - `tests/render.rs` renders the real views and asserts URLs, data attributes,
     and escaping.
   - `html!` bodies are not reflowed by rustfmt, so keep the markup layout tidy
@@ -61,8 +64,8 @@
   - Forms work as plain POST + 303 redirect for clients without JS.
   - Request handlers that have a Datastar caller answer it with SSE
     `datastar-patch-elements` instead of a redirect; the wire helpers live in
-    `src/sse.rs`. Use `views::CRUD_ID` for the patch target instead of a second
-    literal.
+    `src/sse.rs`. Use `views::CRUD_ID` (re-exported from `views::root`) for the
+    patch target instead of a second literal.
   - Keep page JS for behaviour that Datastar expressions can't express, and put
     it in `web/pages/`, not in a `<script>` tag emitted by a view.
 

@@ -1,0 +1,24 @@
+//! Route patterns and the links built from them, shared by the router,
+//! handlers, views and tests.
+
+pub const INDEX: &str = "/";
+pub const USERS: &str = "/users";
+pub const USER_UPDATE: &str = "/users/{id}/update";
+pub const USER_DELETE: &str = "/users/{id}/delete";
+
+/// The start page with one row open for editing.
+pub fn index_edit(id: i64) -> String {
+    format!("{INDEX}?edit={id}")
+}
+
+pub fn user_update(id: i64) -> String {
+    with_id(USER_UPDATE, id)
+}
+
+pub fn user_delete(id: i64) -> String {
+    with_id(USER_DELETE, id)
+}
+
+fn with_id(pattern: &str, id: i64) -> String {
+    pattern.replace("{id}", &id.to_string())
+}
