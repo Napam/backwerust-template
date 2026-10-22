@@ -32,8 +32,8 @@ Requirements:
 
    </details>
 
-2. Planning to use it for your own project? Do the [renaming](#renaming) steps
-   first.
+2. Planning to use it for your own project? Run the [rename
+   wizard](#renaming) first.
 
 3. Run `task dev`. It installs the tools and JS dependencies, sets up the git
    pre-push hook, and starts the dev server with live reload.
@@ -57,27 +57,22 @@ task build.docker.run   # build and run
 
 ## Renaming
 
-There is no script for this. Rename by hand:
+Run the interactive rename wizard:
 
-1. `Cargo.toml`: change `[package] name`, `default-run`, and the `[[bin]]`
-   names if you don't want `backwerust` and `migrate`. `src/bin/migrate.rs` is
-   the migration binary; if you rename the `migrate` bin, also change
-   `cargo run --quiet --bin migrate` in the `db.migrate` task.
-2. `bacon.toml`: change the `--bin` value in the `command` list if you renamed
-   the server binary.
-3. `Taskfile.yml`: change `cp target/release/backwerust ./bin/app`, and the two
-   `backwerust:latest` image references in the `build.docker` tasks.
-4. Brand strings: the `layout` title in `src/views/mod.rs`, the page heading
-   in `src/views/root.rs`, the theme storage key in `web/lib/theme.ts`,
-   `README.md`, and the startup log line in `src/main.rs`.
+```sh
+./scripts/rename.sh
+```
 
-The Dockerfile needs no change: it copies `bin/app`, whatever the binary is
-called.
+It asks for a kebab-case project name and a display name, then updates the
+package and crate name, the server binary, Docker image tags, the theme storage
+key, page titles, and docs. The template clone URL in this README is left alone.
 
-References inside the crate use `crate::`, but the lib target is named after the
-package (`my-app` becomes `my_app`). A package rename means updating the
-`backwerust_template::` imports in `src/main.rs`, `src/bin/migrate.rs`, and
-`tests/render.rs`.
+The script runs `task init`, `task fix`, and `task check` when it finishes. It is
+a one-way operation: commit or stash first, and use `git checkout .` to undo
+tracked changes.
+
+The `migrate` binary, the `data/sqlite.db` path, and the Dockerfile stay as they
+are. They do not contain the project name.
 
 ## How it works
 
@@ -297,6 +292,9 @@ You may want to:
 ├── mise.toml            dev environment config
 │
 ├── rust-toolchain.toml  rust channel and components
+│
+├── scripts
+│   └── rename.sh        interactive project rename wizard
 │
 ├── src
 │   ├── main.rs          server entrypoint

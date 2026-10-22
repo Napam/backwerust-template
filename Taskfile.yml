@@ -28,6 +28,11 @@ tasks:
     cmds:
       - bun install
 
+  rename:
+    desc: Rename the template for a new project (interactive)
+    cmds:
+      - ./scripts/rename.sh
+
   db.migrate:
     desc: Apply the migrations in db/migrations to the local sqlite database
     cmds:
