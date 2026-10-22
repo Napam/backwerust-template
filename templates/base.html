@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Backwerust Template</title>
+		<link rel="stylesheet" id="tailwindcss" href="/static/tailwind.css" />
+		<script src="/static/bundle.js"></script>
+		<script type="module" defer src="/static/assets/vendor/datastar.js"></script>
+		{% block scripts %}{% endblock %}
+	</head>
+	<body class="min-h-screen bg-gray-50 font-sans text-gray-700 dark:bg-neutral-900 dark:text-neutral-300">
+		{% block content %}{% endblock %}
+	</body>
+</html>

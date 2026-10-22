@@ -1,0 +1,41 @@
+[package]
+name = "backwerust-template"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+default-run = "backwerust"
+
+[[bin]]
+name = "backwerust"
+path = "src/main.rs"
+
+[[bin]]
+name = "migrate"
+path = "src/bin/migrate.rs"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+mime_guess = "2"
+minijinja = { version = "3", features = ["serde"] }
+minijinja-embed = "3"
+notify = "8"
+rust-embed = "8"
+serde = { version = "1", features = ["derive"] }
+sqlx = { version = "0.9", default-features = false, features = [
+  "runtime-tokio",
+  "sqlite",
+  "migrate",
+  "macros",
+] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tower-livereload = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
+[build-dependencies]
+minijinja-embed = "3"
+
+[profile.release]
+strip = true

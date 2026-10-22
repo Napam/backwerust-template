@@ -1,0 +1,20 @@
+<section id="crud" class="flex flex-col gap-4 rounded-xs border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800">
+	<div class="flex items-baseline justify-between">
+		<h2 class="text-sm text-gray-500 dark:text-neutral-400">Example CRUD - User registry</h2>
+	</div>
+	<p class="text-xs text-gray-400 dark:text-neutral-500">
+		Native <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-neutral-900">&lt;input&gt;</code> elements inside forms,
+		with <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-neutral-900">&lt;button-component&gt;</code> for buttons.
+		Update and delete forms answer both: plain requests redirect back, Datastar requests patch this section in place.
+	</p>
+	<form method="post" action="/users" class="flex items-end gap-2">
+		<input
+			name="name"
+			placeholder="New user name"
+			aria-label="New user name"
+			class="grow rounded-xs bg-gray-100 px-2 py-1 text-sm text-gray-600 placeholder:font-extralight placeholder:text-gray-400 dark:bg-neutral-700 dark:text-neutral-200 dark:placeholder:text-neutral-400"
+		/>
+		<button-component type="submit" buttonClass="font-normal">Add +</button-component>
+	</form>
+	{% include "partials/users_table.html" %}
+</section>

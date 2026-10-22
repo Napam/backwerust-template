@@ -1,0 +1,23 @@
+#:schema https://dystroy.org/bacon/.bacon.schema.json
+
+# `task dev.rust` runs plain `bacon`, so this is the job that starts.
+# cargo run is the dev server: debug build (assets from disk, live reload on).
+# A server never exits on its own, hence background = false and the
+# kill_then_restart strategy: every change kills the old process and starts a
+# new one, and tower-livereload refreshes the browser.
+default_job = "run"
+
+env.CARGO_TERM_COLOR = "always"
+
+[jobs.run]
+# --bin is explicit: the crate has two binaries (backwerust, migrate)
+command = ["cargo", "run", "--bin", "backwerust"]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+scroll_anchor = "auto"
+# src/ and db/migrations trigger a rebuild (sqlx embeds the migrations).
+# templates/ is intentionally absent: debug builds reload templates from disk,
+# so editing one only needs the live reload watcher, not a restart.
+watch = ["src", "db/migrations", "Cargo.toml"]
