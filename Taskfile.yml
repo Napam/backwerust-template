@@ -38,6 +38,22 @@ tasks:
     cmds:
       - cargo run --quiet --bin migrate
 
+  db.status:
+    desc: Show which embedded migrations are applied, modified, failed or pending locally
+    cmds:
+      - cargo run --quiet --bin migrate -- status
+
+  db.reset:
+    desc: Delete the local sqlite database and apply the migrations again
+    prompt: This deletes the local sqlite database and all local data. Continue?
+    cmds:
+      # Config treats an empty DB_PATH as unset, so resolve the same fallback
+      # here: otherwise the rm deletes nothing and the migrate writes elsewhere
+      - |
+        DB_PATH="${DB_PATH:-./data/sqlite.db}"
+        rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
+      - task: db.migrate
+
   db.new:
     desc: "Create a timestamped empty migration (usage: task db.new -- <name>)"
     cmds:

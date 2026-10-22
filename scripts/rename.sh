@@ -22,6 +22,16 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo "Commit or stash them before renaming." >&2
         exit 1
     fi
+    # git checkout . leaves untracked files in place, but the scan below still
+    # rewrites them, so a half-applied rename could not be undone.
+    UNTRACKED=$(git ls-files --others --exclude-standard)
+    if [[ -n "$UNTRACKED" ]]; then
+        COUNT=$(printf '%s\n' "$UNTRACKED" | wc -l | tr -d '[:space:]')
+        echo "Working tree has $COUNT untracked file(s):" >&2
+        printf '%s\n' "$UNTRACKED" | sed -n '1,10p' >&2
+        echo "Commit, stash, or remove them before renaming." >&2
+        exit 1
+    fi
 else
     UNDO="restore from your backup"
 fi
@@ -97,6 +107,7 @@ FILES=$(find . -type f \
     -not -path './tmp/*' \
     -not -path './bin/*' \
     -not -path './data/*' \
+    -not -path './plans/*' \
     -not -name 'Cargo.lock' \
     -not -name 'bun.lock' \
     -not -name 'bun.lockb' \

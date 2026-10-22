@@ -13,6 +13,9 @@ like [Datastar](https://data-star.dev/) (wired up in the example) or
 Requirements:
 
 - [mise](https://mise.jdx.dev) for development environment setup - mise must be [activated](https://mise.jdx.dev/getting-started.html#activate-mise).
+- A C toolchain (`cc`/clang and make), because sqlx bundles and compiles SQLite.
+  On macOS the Xcode command line tools are enough, on Debian/Ubuntu install
+  `build-essential`.
 - Docker, only if you want to build the container image.
 
 ## Quickstart
@@ -60,6 +63,8 @@ task build.docker.run   # build and run
 Run the interactive rename wizard:
 
 ```sh
+task rename
+# or directly:
 ./scripts/rename.sh
 ```
 
@@ -67,12 +72,16 @@ It asks for a kebab-case project name and a display name, then updates the
 package and crate name, the server binary, Docker image tags, the theme storage
 key, page titles, and docs. The template clone URL in this README is left alone.
 
-The script runs `task init`, `task fix`, and `task check` when it finishes. It is
-a one-way operation: commit or stash first, and use `git checkout .` to undo
-tracked changes.
+The script refuses to start on a dirty tree. That includes untracked files
+unless they are gitignored, so commit, stash, or delete them first. It is a
+one-way operation: use `git checkout .` to undo tracked changes.
+
+It runs `task init`, `task fix`, and `task check` when it finishes.
 
 The `migrate` binary, the `data/sqlite.db` path, and the Dockerfile stay as they
-are. They do not contain the project name.
+are. They do not contain the project name. The directory you cloned into keeps
+its name too: only the package and image names change, so rename the directory
+yourself if you want it to match.
 
 ## How it works
 
@@ -211,6 +220,18 @@ for example `0001_init.sql`). To change the schema:
 `sqlx::migrate!` embeds the whole directory in the server and migration
 binaries, so new files are picked up on the next build.
 
+`task db.status` lists every embedded migration against the local database as
+applied, modified, failed or pending, and works on a database that has never
+been migrated. When the path does not exist it says so instead of creating the
+file. `modified` means the file's checksum differs from the one sqlx recorded;
+`failed` means sqlx recorded the migration but it did not finish, which makes
+sqlx refuse to run; `missing` means an applied migration file is gone.
+
+`task db.reset` deletes the database at `$DB_PATH` (default
+`./data/sqlite.db`) and its WAL files, then applies the migrations from
+scratch. It asks for confirmation and drops local data. Use it when a migration
+was edited after it ran, since sqlx then refuses to continue.
+
 Migrations also run on server startup when `DB_MIGRATE_ON_START=true` (set by
 the Taskfile and the Docker image; the binary defaults to false). The database
 path comes from `DB_PATH` (Taskfile default `./data/sqlite.db`).
@@ -252,6 +273,20 @@ Maud views are Rust, so editor support comes from rust-analyzer and
 `cargo fmt --check` in `task check.rust` covers the crate. The markup layout
 inside `html!` is not reflowed by rustfmt, so keep it tidy by hand.
 
+## Updating dependencies
+
+`task update` runs `mise upgrade --bump --local`, `cargo update`, and
+`bun update --latest`. The `--local` flag writes the bumped tool versions to the
+project's `mise.toml` instead of the global mise config.
+
+`cargo update` only moves to the newest version allowed by the ranges in
+`Cargo.toml`, so a major bump needs an edit there by hand. Optionally install
+`cargo-edit` (`cargo install cargo-edit`) and run `cargo upgrade` to rewrite
+those ranges. It is not part of the mise setup, since the template only needs it
+when you want to bump a major version.
+
+Run `task check` after an update.
+
 ## What next
 
 You may want to:
@@ -269,6 +304,19 @@ You may want to:
 - **Switch to JSON logging:** enable the `json` feature on `tracing-subscriber`,
   then replace the fmt layer in `src/main.rs` with
   `tracing_subscriber::fmt().json()` for production-ready JSON logs.
+
+## Troubleshooting
+
+- **`localhost:6900` is already in use.** Another `task dev` is running, or an
+  earlier one left the server behind. Stop the process with
+  `lsof -ti :6900 | xargs kill`, then start `task dev` again.
+- **A migration fails on the local database.** Often a migration was edited
+  after it was applied. `task db.status` marks it `modified` (or `missing` when
+  the file is gone); `task db.reset` deletes `$DB_PATH` and rebuilds it from
+  `db/migrations/`.
+- **`task rename` refuses to run.** The wizard stops on a dirty tree, including
+  untracked files that are not gitignored. Commit, stash, or remove them, then
+  run it again.
 
 ## Project structure
 

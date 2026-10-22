@@ -26,9 +26,50 @@ pub async fn connect(db_path: &Path) -> anyhow::Result<SqlitePool> {
         .with_context(|| format!("opening database at {}", db_path.display()))
 }
 
-pub async fn migrate(pool: &SqlitePool) -> anyhow::Result<()> {
+/// The migrations embedded at compile time, in filename order.
+pub fn migrations() -> sqlx::migrate::Migrator {
     sqlx::migrate!("./db/migrations")
-        .run(pool)
-        .await
-        .context("running migrations")
+}
+
+pub async fn migrate(pool: &SqlitePool) -> anyhow::Result<()> {
+    migrations().run(pool).await.context("running migrations")
+}
+
+/// A migration sqlx recorded, with the checksum it stored. `success` is false
+/// when the migration did not finish; sqlx then refuses to run any migration
+/// until the database is reset.
+pub struct AppliedMigration {
+    pub version: i64,
+    pub checksum: Vec<u8>,
+    pub success: bool,
+}
+
+/// Migrations recorded in sqlx's bookkeeping table. Empty when the database
+/// has never been migrated.
+pub async fn applied_migrations(pool: &SqlitePool) -> anyhow::Result<Vec<AppliedMigration>> {
+    let table: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+    )
+    .fetch_optional(pool)
+    .await
+    .context("looking for the sqlx migrations table")?;
+
+    if table.is_none() {
+        return Ok(Vec::new());
+    }
+
+    let rows: Vec<(i64, Vec<u8>, bool)> =
+        sqlx::query_as("SELECT version, checksum, success FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(pool)
+            .await
+            .context("reading applied migrations")?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(version, checksum, success)| AppliedMigration {
+            version,
+            checksum,
+            success,
+        })
+        .collect())
 }
