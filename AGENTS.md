@@ -13,9 +13,9 @@
     runs fmt, clippy, and tests
   - to auto-fix formatting/linting, run `task fix` (or `task fix.rust` / `task fix.web`)
 
-- Never put inline SVGs in views (`src/views/`). Icons are Lit web
-  components in `web/lib/web-components/icons`, so they inherit `currentColor`,
-  size with font-size, and can be reused in shadow DOM.
+- Never put inline SVGs in views (`src/views/` and `web/pages/**/*.rs`). Icons
+  are Lit web components in `web/lib/web-components/icons`, so they inherit
+  `currentColor`, size with font-size, and can be reused in shadow DOM.
 
 - JS bundling (see `web/build.ts`):
   - `web/lib/**/*.ts` → single shared `static/bundle.js`, loaded synchronously
@@ -23,6 +23,8 @@
   - `.ts` files under `web/pages/` → per-file page bundles under
     `static/page-files/pages/`, loaded per page with `<script defer>`.
     `pages/` is an allowlist: other top-level dirs are not bundled.
+  - `web/pages/<page>.rs` is that page's maud view, declared in
+    `src/views/mod.rs` with `#[path]`. Keep the view next to `<page>.ts`.
   - Page files: avoid importing from `lib/`. Small utility imports are fine,
     but each duplicates code into the page bundle (iife has no code
     splitting). Don't import from `lib/web-components/` outside `base/`:
@@ -34,19 +36,21 @@
     `web/lib` or a page file and come in through `bun add`.
   - Static URLs in views are plain strings. `task check.web` runs
     `web/scripts/check-static-refs.ts` after the build and fails when a
-    `/static/...` URL in `src/views/**/*.rs` has no file in the output.
+    `/static/...` URL in a view (`src/views/` and `web/pages/**/*.rs`) has no file
+    in the output.
 
 - Tailwind: `web/tailwind.css` uses `@import 'tailwindcss' source(none)` plus
   explicit `@source` lines for `src/**/*.rs`, `web/lib/**/*.ts`, and
-  `web/pages/**/*.ts`. Automatic detection is off, so a source directory with
-  class names needs its own `@source` line.
+  `web/pages/**/*.{ts,rs}`. Automatic detection is off, so a source directory
+  with class names needs its own `@source` line.
 
-- Views are maud functions under `src/views/`, one module per page, and return
-  `Markup`. `html!` checks field names and types at compile time, so a renamed
-  field or a wrong type fails the build instead of a request. A view edit is a
-  Rust change: bacon rebuilds and restarts the server.
+- Views are maud functions that return `Markup`: shared `layout`/`error` in
+  `src/views/`, page views under `web/pages/` next to their page JS.
+  `html!` checks field names and types at compile time, so a renamed field or a
+  wrong type fails the build instead of a request. A view edit is a Rust change:
+  bacon rebuilds and restarts the server.
   - A route handler in `src/routes/<page>.rs` calls the view; register it in
-    `src/routes/mod.rs`. `src/views/root.rs` builds the page shell with `layout`
+    `src/routes/mod.rs`. `web/pages/root.rs` builds the page shell with `layout`
     and calls `crud`; small partials are plain functions in the same module
     (`users_table`, `user_row`, `delete_form`).
   - Route patterns and link builders live in `src/paths.rs`. Use them in the

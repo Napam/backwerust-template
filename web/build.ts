@@ -318,7 +318,10 @@ function startWatching() {
     if (!fs.existsSync(dir)) return
     try {
       const watcher = fs.watch(dir, { recursive: true }, (_event, filename) => {
+        // pages/ also holds maud views (*.rs); only .ts edits rebuild js.
+        // Declaration files never affect the bundle.
         if (filename && filename.endsWith('.d.ts')) return
+        if (kind === 'js' && filename && !filename.endsWith('.ts')) return
         schedule(kind)
       })
       watcher.on('error', (error) => {

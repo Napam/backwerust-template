@@ -188,7 +188,7 @@ tasks:
         wait $p5 || ec=$?
         wait $p6 || ec=$?
         wait $p7 || ec=$?
-        # After the build: every /static/... URL in src/views must exist under OUTDIR.
+        # After the build: every /static/... URL in a view must exist under OUTDIR.
         if [ -f tmp/check-static/bundle.js ] && [ -f tmp/check-static/tailwind.css ]; then
           OUTDIR=tmp/check-static bun run scripts/check-static-refs.ts || ec=$?
         fi

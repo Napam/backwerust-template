@@ -1,5 +1,6 @@
 // Page-specific JS for the root page. build.ts bundles this to
 // static/page-files/pages/root.js, loaded per-page with <script defer>.
+// The maud view is root.rs in this directory, declared as `views::root`.
 //
 // Page files enhance server-rendered HTML. Avoid importing from lib/:
 // small utilities are fine, but each import duplicates code into the page

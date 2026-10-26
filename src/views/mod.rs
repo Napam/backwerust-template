@@ -4,6 +4,9 @@
 //! fields and types used inside `html!`, so a renamed field or a wrong type
 //! fails the build instead of a request.
 
+// The root view sits next to its page JS so a page's markup and browser code
+// live in one directory. `#[path]` keeps the module identity unchanged.
+#[path = "../../web/pages/root.rs"]
 pub mod root;
 
 use axum::http::StatusCode;

@@ -3,6 +3,7 @@
 @source '../src/**/*.rs';
 @source './lib/**/*.ts';
 @source './pages/**/*.ts';
+@source './pages/**/*.rs';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

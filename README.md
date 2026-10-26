@@ -46,8 +46,9 @@ Requirements:
 
 5. Start making changes. The application entrypoint is `src/main.rs`; the
    router is `src/routes/mod.rs`; handlers are in `src/routes/root.rs`; the
-   page view is `src/views/root.rs`; URL patterns are in `src/paths.rs`; Lit
-   components are in `web/lib/web-components`; page JS is `web/pages/root.ts`.
+   root page view and its JS are `web/pages/root.rs` and `web/pages/root.ts`;
+   shared views are in `src/views/`; URL patterns are in `src/paths.rs`; Lit
+   components are in `web/lib/web-components`.
 
 For production build: `task build` (output in `bin/app`).
 
@@ -85,10 +86,11 @@ yourself if you want it to match.
 
 ## How it works
 
-The server renders HTML with maud. A view is a Rust function under
-`src/views/`, one module per page, that returns `Markup`, and `html!` checks
-field names and types at compile time, so a renamed field or a wrong type fails
-the build instead of a request. Forms POST to the server, which processes and
+The server renders HTML with maud. A view is a Rust function that returns
+`Markup`, and `html!` checks field names and types at compile time, so a
+renamed field or a wrong type fails the build instead of a request. Shared
+views (`layout`, `error`) live in `src/views/`; a page view lives in
+`web/pages/` next to its page JS. Forms POST to the server, which processes and
 redirects back with a `303`. No client-side JS is required. Datastar and web
 components enhance where needed.
 
@@ -146,7 +148,8 @@ produces two kinds of bundles:
   body parses.
 - **Page bundles:** a `.ts` file under `web/pages/` becomes its own bundle
   under `static/page-files/pages/`, keeping the relative path.
-  `web/pages/root.ts` pairs with `views::root::page` in `src/views/root.rs`.
+  `web/pages/root.rs` is the maud view (`views::root::page`) and
+  `web/pages/root.ts` is its page JS.
   Load it on just that page. `layout` already loads `bundle.js` and Datastar,
   so the page only passes its own script to `layout`:
 
@@ -168,8 +171,8 @@ pages.
 
 Tailwind scans the paths declared in `web/tailwind.css`: `source(none)` turns
 automatic detection off, and the explicit `@source` lines cover
-`src/**/*.rs`, `web/lib/**/*.ts`, and `web/pages/**/*.ts`. Class names in a new
-source directory need their own `@source` line.
+`src/**/*.rs`, `web/lib/**/*.ts`, and `web/pages/**/*.{ts,rs}`. Class names in a
+new source directory need their own `@source` line.
 
 Datastar is vendored at `web/assets/vendor/datastar.js` and served from
 `/static/assets/vendor/datastar.js` as a module. Load it before page scripts
@@ -257,8 +260,8 @@ offline. That adds a `cargo sqlx` tool requirement to the project.
   `web/tmp/check-static` (so a running dev session isn't clobbered), and the
   page-guard tests (`bun test ./scripts`). After the build,
   `web/scripts/check-static-refs.ts` asserts that every `/static/...` URL in
-  `src/views/**/*.rs` exists in the output, so a renamed page file or asset
-  fails the check instead of 404ing in production.
+  the views (`src/views/` and `web/pages/`) exists in the output, so a renamed
+  page file or asset fails the check instead of 404ing in production.
 
 `tsc` ignores the `ts-lit-plugin` setting in `web/tsconfig.json` because that
 is editor-only, so `lit-analyzer` is the check that covers Lit templates in
@@ -292,9 +295,10 @@ Run `task check` after an update.
 You may want to:
 
 - **Add a page:** add a handler in `src/routes/<name>.rs` and register it in
-  `src/routes/mod.rs`, add `src/views/<name>.rs` with the page function, and
-  pair it with `web/pages/<name>.ts` when it needs page JS. `src/views/root.rs`
-  and `web/pages/root.ts` are the example to copy.
+  `src/routes/mod.rs`. Put the view in `web/pages/<name>.rs` and declare it in
+  `src/views/mod.rs` with `#[path = "../../web/pages/<name>.rs"]`. Add
+  `web/pages/<name>.ts` when the page needs JS. `web/pages/root.rs` and
+  `web/pages/root.ts` are the example to copy.
 - **Add more hypermedia:** the example uses Datastar for update and delete
   (create is a plain POST + `303`). htmx or Alpine AJAX work too; handlers
   already answer plain form posts, so progressive enhancement stays easy.
@@ -354,7 +358,7 @@ You may want to:
 │   ├── sse.rs           Datastar SSE helpers
 │   ├── db/              pool, queries, migration runner
 │   ├── routes/          axum handlers, error type, router
-│   ├── views/           maud views: layout, error, one module per page
+│   ├── views/           shared maud views: layout, error
 │   └── bin/migrate.rs     standalone migration binary
 │
 ├── Taskfile.yml         taskfile with all tasks
@@ -369,7 +373,7 @@ You may want to:
     ├── build.ts         bundles lib/ and pages/, hardlinks assets
     ├── lib              shared ts libraries and Lit components (→ static/bundle.js)
     │   └── web-components/base  page-safe support classes
-    ├── pages            page-specific entries (→ static/page-files/pages/)
+    ├── pages            page views (*.rs) and page JS (→ static/page-files/pages/)
     ├── scripts          build/check scripts (static refs, page guard)
     ├── static           build artifacts, gitignored
     └── tailwind.css     tailwind entry, source list, and theme

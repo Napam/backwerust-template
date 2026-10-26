@@ -1,4 +1,7 @@
 //! The landing page: stack list and CRUD example.
+//!
+//! Declared by `src/views/mod.rs` with `#[path]`, so the view and `root.ts`
+//! stay together.
 
 use maud::{Markup, html};
 
